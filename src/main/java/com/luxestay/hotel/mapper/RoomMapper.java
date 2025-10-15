@@ -24,10 +24,10 @@ public final class RoomMapper {
         dto.setPopular(false);
 
         String am = e.getAmenities();
-        dto.setAmenities(am==null ? new String[0]
-                : Arrays.stream(am.split("[;,]"))
-                .map(String::trim).filter(s->!s.isEmpty())
-                .toArray(String[]::new));
+//        dto.setAmenities(am==null ? new String[0]
+//                : Arrays.stream(am.split("[;,]"))
+//                .map(String::trim).filter(s->!s.isEmpty())
+//                .toArray(String[]::new));
 
         dto.setRating(null); dto.setReviews(null); dto.setDiscount(null);
         return dto;

@@ -1,6 +1,7 @@
 package com.luxestay.hotel.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Max;
 import lombok.*;
 
 @Entity @Table(name = "roles")
@@ -13,6 +14,6 @@ public class Role {
     @Column(name = "role_name", unique = true)
     private String name;
 
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "description")
     private String description;
 }

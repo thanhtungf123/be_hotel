@@ -122,7 +122,7 @@ public class RoomServiceImpl implements RoomService {
         d.setFloorRange("Tầng 2-5");
         d.setDescription(Optional.ofNullable(e.getDescription())
                 .orElse("Phòng " + room.getName() + " trang bị đầy đủ tiện nghi, phù hợp nghỉ dưỡng/công tác."));
-        d.setHighlights(Arrays.asList(room.getAmenities()!=null ? room.getAmenities() : new String[0]));
+//        d.setHighlights(Arrays.asList(room.getAmenities()!=null ? room.getAmenities() : new String[0]));
         d.setGallery(gallery);
         d.setAmenities(Map.of(
                 "Tiện nghi cơ bản", List.of("WiFi miễn phí","Điều hòa","TV","Két an toàn"),
