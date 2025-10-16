@@ -6,12 +6,14 @@ import com.luxestay.hotel.repository.RoleRepository;
 import com.luxestay.hotel.model.Account;
 import com.luxestay.hotel.model.Employee;
 import com.luxestay.hotel.model.Role;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class EmployeeService {
     @Autowired
     private EmployeeRepository employeeRepository;
