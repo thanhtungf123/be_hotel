@@ -5,6 +5,7 @@ import com.luxestay.hotel.dto.booking.*;
 import com.luxestay.hotel.model.Account;
 import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.model.entity.RoomEntity;
+import com.luxestay.hotel.repository.BookingRepository;
 import com.luxestay.hotel.repository.*;
 import com.luxestay.hotel.service.BookingService;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,9 @@ import java.math.BigDecimal;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.time.LocalDateTime;
+import java.util.Set;
+
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +28,8 @@ public class BookingServiceImpl implements BookingService {
     private final BookingRepository bookingRepository;
     private final RoomRepository roomRepository;
     private final AccountRepository accountRepository;
+
+    private static final Set<String> CUSTOMER_CANCEL_ALLOWED = Set.of("pending","confirmed");
 
     private static final int CANCEL_FREE_HOURS = 24; // bạn tùy chỉnh
 
@@ -63,53 +69,36 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     public void requestCancel(Integer bookingId, Integer accountId, String reason) {
         BookingEntity b = bookingRepository.findByIdAndAccount_Id(bookingId, accountId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng của bạn"));
 
-        String st = (b.getStatus()==null?"pending":b.getStatus()).toLowerCase();
-        if (st.equals("cancellation_requested"))
-            throw new IllegalStateException("Bạn đã gửi yêu cầu hủy, vui lòng chờ duyệt");
-        if (st.equals("cancelled"))
-            throw new IllegalStateException("Đơn đã hủy");
-        if (st.equals("checked_in") || st.equals("checked_out"))
-            throw new IllegalStateException("Không thể hủy khi đã nhận/trả phòng");
-
-        // kiểm tra hạn chót hủy miễn phí (không block, chỉ tham khảo; muốn block -> throw)
-        if (b.getCheckIn() != null) {
-            LocalDateTime deadline = b.getCheckIn().atStartOfDay().minusHours(CANCEL_FREE_HOURS);
-            if (LocalDateTime.now().isAfter(deadline)) {
-                // có thể ghi thêm note “Trễ hạn”
-            }
+        if (!CUSTOMER_CANCEL_ALLOWED.contains(b.getStatus().toLowerCase())) {
+            throw new IllegalStateException("Trạng thái hiện tại không cho phép yêu cầu huỷ");
         }
-
-        b.setStatus("cancellation_requested");
+        b.setStatus("cancel_requested");
         b.setCancelReason(reason);
         b.setCancelRequestedAt(LocalDateTime.now());
         bookingRepository.save(b);
     }
 
-    @Override
     @Transactional
+    @Override
     public void decideCancel(Integer bookingId, Integer staffId, boolean approve, String note) {
         BookingEntity b = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
 
-        if (!"cancellation_requested".equalsIgnoreCase(b.getStatus())) {
-            throw new IllegalStateException("Đơn không ở trạng thái chờ hủy");
+        if (!"cancel_requested".equalsIgnoreCase(b.getStatus())) {
+            throw new IllegalStateException("Đơn này không ở trạng thái chờ duyệt huỷ");
         }
-
         if (approve) {
             b.setStatus("cancelled");
-            b.setCancelApprovedBy(staffId);
-            b.setCancelApprovedAt(LocalDateTime.now());
-            if (note != null && !note.isBlank()) {
-                b.setCancelReason(append(b.getCancelReason(), "Staff note: " + note));
-            }
         } else {
-            // từ chối: quay về confirmed (hoặc pending tùy nghiệp vụ)
             b.setStatus("confirmed");
-            if (note != null && !note.isBlank()) {
-                b.setCancelReason(append(b.getCancelReason(), "Reject: " + note));
-            }
+        }
+        b.setCancelApprovedBy(staffId);
+        b.setCancelApprovedAt(LocalDateTime.now());
+        if (note != null && !note.isBlank()) {
+            String old = b.getCancelReason() == null ? "" : b.getCancelReason() + " | ";
+            b.setCancelReason(old + note);
         }
         bookingRepository.save(b);
     }

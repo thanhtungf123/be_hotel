@@ -34,7 +34,7 @@ public class BookingEntity {
     @Column(name = "total_price")
     private BigDecimal totalPrice;
 
-    @Column(name = "status")
+    @Column(name = "status", length = 32)
     private String status;
 
     @Column(name = "created_at")

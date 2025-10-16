@@ -1,3 +1,4 @@
+// service/impl/BookingQueryServiceImpl.java
 package com.luxestay.hotel.service.impl;
 
 import com.luxestay.hotel.dto.PagedResponse;
@@ -6,8 +7,7 @@ import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.repository.BookingRepository;
 import com.luxestay.hotel.service.BookingQueryService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,7 +23,6 @@ public class BookingQueryServiceImpl implements BookingQueryService {
     @Override
     @Transactional(readOnly = true)
     public PagedResponse<BookingSummary> listMine(Integer accountId, String status, Pageable pageable) {
-        // dùng lại query đã có
         Page<BookingEntity> page = bookingRepository.findForHistory(accountId, status, pageable);
 
         List<BookingSummary> items = page.getContent().stream().map(b -> {
@@ -48,6 +47,6 @@ public class BookingQueryServiceImpl implements BookingQueryService {
             return s;
         }).toList();
 
-        return new PagedResponse<>(items, (int) page.getTotalElements(), page.getNumber(), page.getSize());
+        return new PagedResponse<>(items, page.getTotalElements(), page.getNumber(), page.getSize());
     }
 }

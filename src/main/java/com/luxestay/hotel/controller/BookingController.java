@@ -37,31 +37,32 @@ public class BookingController {
     /** KH gửi yêu cầu hủy */
     @PatchMapping("/{id}/request-cancel")
     public ResponseEntity<?> requestCancel(
-            @PathVariable Integer id,
+            @PathVariable("id") Integer id,
             @RequestHeader("X-Auth-Token") String token,
             @RequestBody(required = false) CancelRequest body
-    ){
-        Account acc = authService.requireAccount(token);
-        bookingService.requestCancel(id, acc.getId(), body!=null? body.getReason(): null);
+    ) {
+        Integer accountId = authService.verify(token)
+                .orElseThrow(() -> new IllegalArgumentException("Bạn cần đăng nhập"));
+        bookingService.requestCancel(id, accountId, body != null ? body.getReason() : null);
         return ResponseEntity.ok(Map.of(
                 "bookingId", id,
-                "status", "cancellation_requested",
-                "message", "Đã gửi yêu cầu hủy. Vui lòng chờ phê duyệt."
+                "status", "cancel_requested",
+                "message", "Đã gửi yêu cầu huỷ. Vui lòng chờ nhân viên duyệt."
         ));
     }
 
-    /** Admin/Staff duyệt/từ chối yêu cầu hủy */
+    // Admin/Staff duyệt/từ chối
     @PatchMapping("/{id}/cancel-decision")
     public ResponseEntity<?> cancelDecision(
-            @PathVariable Integer id,
+            @PathVariable("id") Integer id,
             @RequestHeader("X-Auth-Token") String token,
             @RequestBody CancelDecisionRequest body
-    ){
+    ) {
         Account staff = authService.requireAccount(token);
-        String role = staff.getRole()!=null ? staff.getRole().getName() : "";
+        String role = staff.getRole() != null ? staff.getRole().getName() : "";
         if (!"admin".equalsIgnoreCase(role) && !"staff".equalsIgnoreCase(role)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("message","Chỉ admin/staff được duyệt hủy"));
+                    .body(Map.of("message", "Chỉ admin/staff được duyệt hủy"));
         }
         bookingService.decideCancel(id, staff.getId(), Boolean.TRUE.equals(body.getApprove()), body.getNote());
         return ResponseEntity.ok(Map.of("bookingId", id));
