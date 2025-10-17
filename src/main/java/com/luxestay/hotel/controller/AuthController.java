@@ -14,17 +14,19 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
-
+// Đăng ký tài khoản mới
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest req) {
         return ResponseEntity.ok(authService.register(req));
     }
 
+    // Đăng nhập
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest req) {
         return ResponseEntity.ok(authService.login(req));
     }
 
+    // Đăng xuất
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader("X-Auth-Token") String token) {
         authService.logout(token);

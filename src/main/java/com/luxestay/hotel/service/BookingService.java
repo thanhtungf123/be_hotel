@@ -7,8 +7,6 @@ public interface BookingService {
     BookingResponse create(Integer accountId, BookingRequest req);
 
     // KH gửi yêu cầu hủy
-    default PagedResponse<BookingSummary> history(Integer accountId, String status, int page, int size) { return null; }
-
     void requestCancel(Integer bookingId, Integer accountId, String reason);
 
     // Admin/Staff duyệt/từ chối
