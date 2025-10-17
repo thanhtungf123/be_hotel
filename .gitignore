@@ -1,45 +1,45 @@
-# ----------- Java/Maven -----------
-# Build output
-target/
+# # ----------- Java/Maven -----------
+# # Build output
+# target/
 
-# If you have additional build dirs
-build/
-dist/
+# # If you have additional build dirs
+# build/
+# dist/
 
-# ----------- IDE / Editor -----------
-.idea/
-*.iml
-.project
-.classpath
-.settings/
-.vscode/
+# # ----------- IDE / Editor -----------
+# .idea/
+# *.iml
+# .project
+# .classpath
+# .settings/
+# .vscode/
 
-# ----------- OS files -----------
-.DS_Store
-Thumbs.db
+# # ----------- OS files -----------
+# .DS_Store
+# Thumbs.db
 
-# ----------- Logs & temp -----------
-logs/
-*.log
-*.out
-*.tmp
-tmp/
+# # ----------- Logs & temp -----------
+# logs/
+# *.log
+# *.out
+# *.tmp
+# tmp/
 
-# ----------- Env / Secrets -----------
-.env
-*.env
-.env.*
+# # ----------- Env / Secrets -----------
+# .env
+# *.env
+# .env.*
 
-# ----------- Backups / Misc -----------
-*.bak
-*.swp
-*.swo
-hotel_booking_system.bak
+# # ----------- Backups / Misc -----------
+# *.bak
+# *.swp
+# *.swo
+# hotel_booking_system.bak
 
-# ----------- Keep important sources -----------
-!.gitignore
-!src
-!target
-!pom.xml
-.mvn/
-.mvn/wrapper/maven-wrapper.jar
+# # ----------- Keep important sources -----------
+# !.gitignore
+# !src
+# !target
+# !pom.xml
+# .mvn/
+# .mvn/wrapper/maven-wrapper.jar
