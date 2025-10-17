@@ -1,0 +1,11 @@
+# --- Mặc định: bỏ theo dõi mọi thứ ---
+/*
+
+# --- Cho phép (whitelist) các file/thư mục cần giữ ---
+!.gitignore
+!src/
+!pom.xml
+
+# (tùy chọn) nếu bạn dùng Maven Wrapper thì giữ luôn
+!.mvn/
+!.mvn/wrapper/maven-wrapper.jar
