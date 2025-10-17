@@ -1,0 +1,16 @@
+# IntelliJ / Eclipse
+.idea/
+*.iml
+.classpath
+.project
+
+# Maven
+target/
+*.class
+
+# OS junk
+.DS_Store
+Thumbs.db
+.idea/
+target/
+*.iml

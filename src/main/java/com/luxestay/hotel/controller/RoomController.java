@@ -24,21 +24,25 @@ import java.util.List;
 })
 public class RoomController {
     private final RoomService roomService;
-    public RoomController(RoomService roomService) { this.roomService = roomService; }
+
+    public RoomController(RoomService roomService) {
+        this.roomService = roomService;
+    }
 
     @GetMapping
-    public List<Room> getRooms() { return roomService.listRooms(); }
+    public List<Room> getRooms() {
+        return roomService.listRooms();
+    }
 
     @GetMapping("/search")
     public PagedResponse<Room> search(
             @RequestParam(name = "priceMax", required = false) Integer priceMax,
-            @RequestParam(name = "guests",   required = false) Integer guests,
-            @RequestParam(name = "types",    required = false) String types,
-            @RequestParam(name = "amenities",required = false) String amenities,
-            @RequestParam(name = "sort",     required = false, defaultValue = "priceAsc") String sort,
-            @RequestParam(name = "page",     required = false, defaultValue = "0") Integer page,
-            @RequestParam(name = "size",     required = false, defaultValue = "10") Integer size
-    ) {
+            @RequestParam(name = "guests", required = false) Integer guests,
+            @RequestParam(name = "types", required = false) String types,
+            @RequestParam(name = "amenities", required = false) String amenities,
+            @RequestParam(name = "sort", required = false, defaultValue = "priceAsc") String sort,
+            @RequestParam(name = "page", required = false, defaultValue = "0") Integer page,
+            @RequestParam(name = "size", required = false, defaultValue = "10") Integer size) {
         RoomSearchCriteria c = new RoomSearchCriteria();
         c.setPriceMax(priceMax);
         c.setGuests(guests);
@@ -67,23 +71,20 @@ public class RoomController {
     @PostMapping("/{id}/images")
     public ResponseEntity<List<String>> addImages(
             @PathVariable("id") Long id,
-            @RequestBody List<RoomImageRequest> body
-    ){
+            @RequestBody List<RoomImageRequest> body) {
         return ResponseEntity.ok(roomService.addImages(id, body));
     }
 
     @PutMapping("/{id}/images/{imageId}/primary")
     public ResponseEntity<Void> setPrimary(
-            @PathVariable Long id, @PathVariable Integer imageId
-    ){
+            @PathVariable Long id, @PathVariable Integer imageId) {
         roomService.setPrimaryImage(id, imageId);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}/images/{imageId}")
     public ResponseEntity<Void> deleteImage(
-            @PathVariable Long id, @PathVariable Integer imageId
-    ){
+            @PathVariable Long id, @PathVariable Integer imageId) {
         roomService.deleteImage(id, imageId);
         return ResponseEntity.noContent().build();
     }

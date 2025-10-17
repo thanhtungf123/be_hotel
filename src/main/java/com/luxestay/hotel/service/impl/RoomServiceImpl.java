@@ -32,8 +32,7 @@ public class RoomServiceImpl implements RoomService {
     public List<Room> listRooms() {
         Page<RoomEntity> page = roomRepository.findForList(
                 null, null, null, null, null,
-                PageRequest.of(0, 50, Sort.by("pricePerNight").ascending())
-        );
+                PageRequest.of(0, 50, Sort.by("pricePerNight").ascending()));
         return page.getContent().stream().map(RoomMapper::toDto).toList();
     }
 
@@ -48,8 +47,7 @@ public class RoomServiceImpl implements RoomService {
         Pageable pageable = PageRequest.of(
                 Optional.ofNullable(c.getPage()).orElse(0),
                 Optional.ofNullable(c.getSize()).orElse(10),
-                sort
-        );
+                sort);
 
         // ⇩ Lấy danh sách bed layout người dùng chọn (nếu rỗng => null)
         List<String> layoutNames = (c.getTypes() == null || c.getTypes().isEmpty())
@@ -60,38 +58,38 @@ public class RoomServiceImpl implements RoomService {
         String q = null;
 
         Page<RoomEntity> page = roomRepository.findForList(
-                null,                 // status
-                layoutNames,          // lọc theo bed_layouts.layout_name (IN)
-                null,                 // minPrice (nếu cần có thể thêm từ UI)
-                c.getPriceMax(),      // maxPrice
-                q,                    // q
-                pageable
-        );
+                null, // status
+                layoutNames, // lọc theo bed_layouts.layout_name (IN)
+                null, // minPrice (nếu cần có thể thêm từ UI)
+                c.getPriceMax(), // maxPrice
+                q, // q
+                pageable);
 
         List<RoomEntity> list = new ArrayList<>(page.getContent());
 
         // lọc capacity theo guests
-        if (c.getGuests()!=null) {
+        if (c.getGuests() != null) {
             list = list.stream()
-                    .filter(r -> r.getCapacity()!=null && r.getCapacity() >= c.getGuests())
+                    .filter(r -> r.getCapacity() != null && r.getCapacity() >= c.getGuests())
                     .toList();
         }
 
         // lọc amenities (ít nhất 1 trùng)
-        if (c.getAmenities()!=null && !c.getAmenities().isEmpty()) {
+        if (c.getAmenities() != null && !c.getAmenities().isEmpty()) {
             Set<String> need = c.getAmenities().stream()
                     .map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
             list = list.stream().filter(r -> {
                 String am = Optional.ofNullable(r.getAmenities()).orElse("");
                 for (String token : am.split("[;,]")) {
-                    if (need.contains(token.trim().toLowerCase(Locale.ROOT))) return true;
+                    if (need.contains(token.trim().toLowerCase(Locale.ROOT)))
+                        return true;
                 }
                 return false;
             }).toList();
         }
 
         List<Room> items = list.stream().map(RoomMapper::toDto).toList();
-        return new PagedResponse<>(items, (int)page.getTotalElements(), page.getNumber(), page.getSize());
+        return new PagedResponse<>(items, (int) page.getTotalElements(), page.getNumber(), page.getSize());
     }
 
     @Override
@@ -110,7 +108,7 @@ public class RoomServiceImpl implements RoomService {
         if (!imgs.isEmpty()) {
             gallery = imgs.stream().map(RoomImage::getImageUrl).toList();
             room.setImageUrl(gallery.get(0)); // đồng bộ ảnh đại diện theo ảnh primary
-        } else if (room.getImageUrl()!=null && !room.getImageUrl().isBlank()) {
+        } else if (room.getImageUrl() != null && !room.getImageUrl().isBlank()) {
             gallery = List.of(room.getImageUrl());
         } else {
             gallery = List.of("/assets/placeholder-room.jpg");
@@ -122,21 +120,23 @@ public class RoomServiceImpl implements RoomService {
         d.setFloorRange("Tầng 2-5");
         d.setDescription(Optional.ofNullable(e.getDescription())
                 .orElse("Phòng " + room.getName() + " trang bị đầy đủ tiện nghi, phù hợp nghỉ dưỡng/công tác."));
-        d.setHighlights(Arrays.asList(room.getAmenities()!=null ? room.getAmenities() : new String[0]));
+        d.setHighlights(Arrays.asList(room.getAmenities() != null ? room.getAmenities() : new String[0]));
         d.setGallery(gallery);
         d.setAmenities(Map.of(
-                "Tiện nghi cơ bản", List.of("WiFi miễn phí","Điều hòa","TV","Két an toàn"),
-                "Phòng tắm", List.of("Vòi sen","Đồ dùng tắm"),
-                "Dịch vụ", List.of("Giặt ủi","Dọn phòng")
-        ));
-        d.setRatingHistogram(Map.of(5,78,4,32,3,10,2,3,1,1));
+                "Tiện nghi cơ bản", List.of("WiFi miễn phí", "Điều hòa", "TV", "Két an toàn"),
+                "Phòng tắm", List.of("Vòi sen", "Đồ dùng tắm"),
+                "Dịch vụ", List.of("Giặt ủi", "Dọn phòng")));
+        d.setRatingHistogram(Map.of(5, 78, 4, 32, 3, 10, 2, 3, 1, 1));
         d.setReviews(List.of(
-                new Review("Khách Ẩn Danh","https://i.pravatar.cc/64?img=1",5,"Phòng sạch đẹp, đúng mô tả.","2 tuần trước")
-        ));
+                new Review("Khách Ẩn Danh", "https://i.pravatar.cc/64?img=1", 5, "Phòng sạch đẹp, đúng mô tả.",
+                        "2 tuần trước")));
         return d;
     }
 
-    /* ====== Phần quản lý ảnh (add / setPrimary / delete) giữ nguyên logic của bạn ====== */
+    /*
+     * ====== Phần quản lý ảnh (add / setPrimary / delete) giữ nguyên logic của bạn
+     * ======
+     */
 
     @Override
     public List<String> addImages(Long roomId, List<RoomImageRequest> images) {
@@ -147,22 +147,27 @@ public class RoomServiceImpl implements RoomService {
                 .anyMatch(x -> Boolean.TRUE.equals(x.getPrimary()));
         if (hasPrimaryInRequest) {
             var exist = roomImageRepository.findByRoom_IdOrderByIsPrimaryDescSortOrderAsc(room.getId());
-            exist.forEach(i -> { if(Boolean.TRUE.equals(i.getIsPrimary())) i.setIsPrimary(false); });
+            exist.forEach(i -> {
+                if (Boolean.TRUE.equals(i.getIsPrimary()))
+                    i.setIsPrimary(false);
+            });
             roomImageRepository.saveAll(exist);
         }
 
         int autoOrder = 1;
         List<String> gallery = new ArrayList<>();
         for (var req : images) {
-            if (req.getImageUrl()==null || req.getImageUrl().isBlank()) continue;
+            if (req.getImageUrl() == null || req.getImageUrl().isBlank())
+                continue;
             var img = new RoomImage();
             img.setRoom(room);
             img.setImageUrl(req.getImageUrl().trim());
             img.setIsPrimary(Boolean.TRUE.equals(req.getPrimary()));
-            img.setSortOrder(req.getSortOrder()!=null ? req.getSortOrder() : autoOrder++);
+            img.setSortOrder(req.getSortOrder() != null ? req.getSortOrder() : autoOrder++);
             roomImageRepository.save(img);
             gallery.add(img.getImageUrl());
-            if (img.getIsPrimary()) room.setImageUrl(img.getImageUrl());
+            if (img.getIsPrimary())
+                room.setImageUrl(img.getImageUrl());
         }
         roomRepository.save(room);
         return gallery;
@@ -181,7 +186,8 @@ public class RoomServiceImpl implements RoomService {
         if (!img.getRoom().getId().equals(room.getId()))
             throw new IllegalArgumentException("Image does not belong to room");
 
-        img.setIsPrimary(true); img.setSortOrder(0);
+        img.setIsPrimary(true);
+        img.setSortOrder(0);
         roomImageRepository.save(img);
         room.setImageUrl(img.getImageUrl());
         roomRepository.save(room);
