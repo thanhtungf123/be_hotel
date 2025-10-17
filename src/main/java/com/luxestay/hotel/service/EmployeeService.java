@@ -1,97 +1,91 @@
-// src/main/java/com/luxestay/hotel/service/EmployeeService.java
 package com.luxestay.hotel.service;
 
-import com.luxestay.hotel.dto.employee.EmployeeRequest;
-import com.luxestay.hotel.dto.employee.EmployeeResponse;
 import com.luxestay.hotel.model.Account;
 import com.luxestay.hotel.model.Employee;
 import com.luxestay.hotel.repository.AccountRepository;
 import com.luxestay.hotel.repository.EmployeeRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
-import org.springframework.http.HttpStatus;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class EmployeeService {
 
-    private final EmployeeRepository employeeRepository;
-    private final AccountRepository accountRepository;
+    private final EmployeeRepository employeeRepo;
+    private final AccountRepository accountRepo;
 
-    public List<EmployeeResponse> getAll(String q) {
-        List<Employee> list = (q == null || q.isBlank())
-                ? employeeRepository.findAll()
-                : employeeRepository.search(q);
-
-        return list.stream().map(this::toResp).toList();
+    public Employee create(Employee e, Integer accountIdOrNull) {
+        if (accountIdOrNull != null) {
+            Account acc = accountRepo.findById(accountIdOrNull)
+                    .orElseThrow(() -> new NoSuchElementException("Account not found: " + accountIdOrNull));
+            ensureAccountNotLinked(acc.getId(), null);
+            e.setAccount(acc);
+        }
+        return employeeRepo.save(e);
     }
 
-    public EmployeeResponse getById(Integer id) {
-        Employee e = employeeRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found"));
-        return toResp(e);
+    public Employee get(Integer id) {
+        return employeeRepo.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Employee not found: " + id));
     }
 
-    @Transactional
-    public EmployeeResponse create(EmployeeRequest r) {
-        Employee e = new Employee();
-        apply(e, r);
-        e = employeeRepository.save(e);
-        return toResp(e);
+    public Page<Employee> list(Pageable pageable) {
+        return employeeRepo.findAll(pageable);
     }
 
-    @Transactional
-    public EmployeeResponse update(Integer id, EmployeeRequest r) {
-        Employee e = employeeRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found"));
-        apply(e, r);
-        e = employeeRepository.save(e);
-        return toResp(e);
+    public Employee update(Integer id, Employee patch) {
+        Employee e = get(id);
+        if (patch.getEmployeeCode() != null) e.setEmployeeCode(patch.getEmployeeCode());
+        if (patch.getPosition() != null) e.setPosition(patch.getPosition());
+        if (patch.getDepartment() != null) e.setDepartment(patch.getDepartment());
+        if (patch.getHireDate() != null) e.setHireDate(patch.getHireDate());
+        if (patch.getSalary() != null) e.setSalary(patch.getSalary());
+        if (patch.getStatus() != null) e.setStatus(patch.getStatus());
+        return e;
     }
 
-    @Transactional
+
     public void delete(Integer id) {
-        Employee e = employeeRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found"));
+        Employee e = employeeRepo.findById(id).orElseThrow(() -> new NoSuchElementException("Employee not found: " + id));
         if(e != null) {
-            e.setStatus("deactive");
-            employeeRepository.save(e);
+            e.setStatus("Deactivated");
+            employeeRepo.save(e);
         }
     }
 
-    /* ---------- helpers ---------- */
 
-    private void apply(Employee e, EmployeeRequest r) {
-        Account acc = null;
-        if (r.getAccountId() != null) {
-            acc = accountRepository.findById(r.getAccountId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account not found"));
-        }
+    public Employee linkAccount(Integer employeeId, Integer accountId) {
+        Employee e = get(employeeId);
+        Account acc = accountRepo.findById(accountId)
+                .orElseThrow(() -> new NoSuchElementException("Account not found: " + accountId));
+        ensureAccountNotLinked(acc.getId(), e.getId());
         e.setAccount(acc);
-        e.setEmployeeCode(r.getEmployeeCode());
-        e.setPosition(r.getPosition());
-        e.setDepartment(r.getDepartment());
-        e.setHireDate(r.getHireDate());
-        e.setSalary(r.getSalary());
-        e.setStatus(r.getStatus());
-
-        // created_at tự set ở @PrePersist
+        return e;
     }
 
-    private EmployeeResponse toResp(Employee e) {
-        return new EmployeeResponse(
-                e.getId(),
-                e.getAccount() != null ? e.getAccount().getId() : null,
-                e.getEmployeeCode(),
-                e.getPosition(),
-                e.getDepartment(),
-                e.getHireDate(),
-                e.getSalary(),
-                e.getStatus(),
-                e.getCreatedAt()
-        );
+
+    public Employee unlinkAccount(Integer employeeId) {
+        Employee e = get(employeeId);
+        e.setAccount(null);
+        return e;
+    }
+
+    private void ensureAccountNotLinked(Integer accountId, Integer currentEmployeeIdOrNull) {
+        employeeRepo.findByAccount_Id(accountId).ifPresent(existing -> {
+            if (currentEmployeeIdOrNull == null || !existing.getId().equals(currentEmployeeIdOrNull)) {
+                throw new IllegalStateException("Account " + accountId + " is already linked to employee " + existing.getId());
+            }
+        });
+    }
+
+    public List<Employee> getAll() {
+        return employeeRepo.findAll();
     }
 }

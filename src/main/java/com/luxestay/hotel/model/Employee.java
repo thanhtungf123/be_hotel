@@ -18,8 +18,9 @@ public class Employee {
     private Integer id;
 
     // FK -> accounts.id (nullable)
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "account_id")
+    // Nullable 1–1 to Account
+    @OneToOne(fetch = FetchType.LAZY, optional = true)   // optional=true is default; keeps it nullable at JPA level
+    @JoinColumn(name = "account_id", nullable = true)    // column can be NULL
     private Account account;
 
     @Column(name = "employee_code", length = 20)
@@ -40,7 +41,7 @@ public class Employee {
 
     // nvarchar(20)
     @Column(name = "status", length = 20)
-    private String status;
+    private String status = "Active";
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

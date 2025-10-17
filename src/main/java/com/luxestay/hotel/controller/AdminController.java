@@ -3,13 +3,16 @@ package com.luxestay.hotel.controller;
 
 import com.luxestay.hotel.dto.employee.EmployeeRequest;
 import com.luxestay.hotel.dto.employee.EmployeeResponse;
+import com.luxestay.hotel.model.Employee;
 import com.luxestay.hotel.repository.AccountRepository;
 import com.luxestay.hotel.repository.EmployeeRepository;
 import com.luxestay.hotel.service.AccountService;
 import com.luxestay.hotel.service.AuthService;
-import com.luxestay.hotel.service.EmployeeService;
+
 import com.luxestay.hotel.model.Account;
 import com.luxestay.hotel.model.Role;
+import com.luxestay.hotel.service.EmployeeService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -32,7 +35,6 @@ import java.util.Optional;
 public class AdminController {
 
     private final AuthService authService;
-//    private final AccountRepository accountRepository;
     private final AccountService accountService;
     private final EmployeeService employeeService;
 
@@ -60,35 +62,31 @@ public class AdminController {
 
     /* ---------- CRUD EMPLOYEE ---------- */
     @GetMapping("/employees/{id}")
-    public EmployeeResponse detail(@PathVariable Integer id, HttpServletRequest request) {
-        return employeeService.getById(id);
+    public Employee get(@PathVariable Integer id) {
+        return employeeService.get(id);
     }
 
     @PostMapping("/employees")
     @ResponseStatus(HttpStatus.CREATED)
-    public EmployeeResponse create(@RequestBody EmployeeRequest req, HttpServletRequest request) {
-        return employeeService.create(req);
+    public Employee create(@Valid @RequestBody Employee body,
+                           @RequestParam(required = false) Integer accountId) {
+        return employeeService.create(body, accountId);
     }
 
     @PutMapping("/employees/{id}/edit")
-    public EmployeeResponse update(@PathVariable Integer id,
-                                   @RequestBody EmployeeRequest req,
-                                   HttpServletRequest request) {
-        return employeeService.update(id, req);
+    public Employee update(@PathVariable Integer id, @RequestBody Employee patch) {
+        return employeeService.update(id, patch);
     }
 
     @DeleteMapping("/employees/{id}/delete")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Integer id, HttpServletRequest request) {
+    public void delete(@PathVariable Integer id) {
         employeeService.delete(id);
     }
-
     //Get all Employee
     @GetMapping("/employees/employees")
-    public List<EmployeeResponse> list(@RequestParam(required = false) String q,
-                                       HttpServletRequest request) {
-//
-        return employeeService.getAll(q);
+    public List<Employee> getEmployees() {
+        return employeeService.getAll();
     }
 
 
