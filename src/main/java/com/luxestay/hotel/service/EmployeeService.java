@@ -55,10 +55,11 @@ public class EmployeeService {
 
     @Transactional
     public void delete(Integer id) {
-        if (!employeeRepository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found");
+        Employee e = employeeRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found"));
+        if(e != null) {
+            e.setStatus("deactive");
+            employeeRepository.save(e);
         }
-        employeeRepository.deleteById(id);
     }
 
     /* ---------- helpers ---------- */
@@ -76,7 +77,7 @@ public class EmployeeService {
         e.setHireDate(r.getHireDate());
         e.setSalary(r.getSalary());
         e.setStatus(r.getStatus());
-        e.setEmployeeGmail(r.getEmployeeGmail());
+
         // created_at tự set ở @PrePersist
     }
 
@@ -90,8 +91,7 @@ public class EmployeeService {
                 e.getHireDate(),
                 e.getSalary(),
                 e.getStatus(),
-                e.getCreatedAt(),
-                e.getEmployeeGmail()
+                e.getCreatedAt()
         );
     }
 }

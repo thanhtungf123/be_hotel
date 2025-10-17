@@ -45,8 +45,6 @@ public class Employee {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "employee_gmail", length = 255)
-    private String employeeGmail;
 
     @PrePersist
     void prePersist() {

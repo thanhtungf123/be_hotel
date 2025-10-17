@@ -5,6 +5,7 @@ import com.luxestay.hotel.dto.employee.EmployeeRequest;
 import com.luxestay.hotel.dto.employee.EmployeeResponse;
 import com.luxestay.hotel.repository.AccountRepository;
 import com.luxestay.hotel.repository.EmployeeRepository;
+import com.luxestay.hotel.service.AccountService;
 import com.luxestay.hotel.service.AuthService;
 import com.luxestay.hotel.service.EmployeeService;
 import com.luxestay.hotel.model.Account;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.servlet.http.HttpServletRequest;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -30,10 +32,13 @@ import java.util.Optional;
 public class AdminController {
 
     private final AuthService authService;
-    private final AccountRepository accountRepository;
+//    private final AccountRepository accountRepository;
+    private final AccountService accountService;
     private final EmployeeService employeeService;
 
-    /** Guard admin theo X-Auth-Token */
+    /**
+     * Guard admin theo X-Auth-Token
+     */
 //    private void requireAdmin(HttpServletRequest request) {
 //        String token = request.getHeader("X-Auth-Token");
 //        if (token == null || token.isBlank()) {
@@ -53,46 +58,84 @@ public class AdminController {
 //        }
 //    }
 
-    /* ---------- CRUD ---------- */
-
-    @GetMapping("/employees")
-    public List<EmployeeResponse> list(@RequestParam(required = false) String q,
-                                       HttpServletRequest request) {
-//        requireAdmin(request);
-        return employeeService.getAll(q);
-    }
-
-    @GetMapping("/{id}")
+    /* ---------- CRUD EMPLOYEE ---------- */
+    @GetMapping("/employees/{id}")
     public EmployeeResponse detail(@PathVariable Integer id, HttpServletRequest request) {
-//        requireAdmin(request);
         return employeeService.getById(id);
     }
 
-    @PostMapping
+    @PostMapping("/employees")
     @ResponseStatus(HttpStatus.CREATED)
     public EmployeeResponse create(@RequestBody EmployeeRequest req, HttpServletRequest request) {
-//        requireAdmin(request);
         return employeeService.create(req);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/employees/{id}/edit")
     public EmployeeResponse update(@PathVariable Integer id,
                                    @RequestBody EmployeeRequest req,
                                    HttpServletRequest request) {
-//        requireAdmin(request);
         return employeeService.update(id, req);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/employees/{id}/delete")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Integer id, HttpServletRequest request) {
-//        requireAdmin(request);
         employeeService.delete(id);
     }
 
-    @GetMapping("/accounts")
-    public List<Account>  getAccounts(HttpServletRequest request) {
-//        requireAdmin(request);
-        return accountRepository.findAll();
+    //Get all Employee
+    @GetMapping("/employees/employees")
+    public List<EmployeeResponse> list(@RequestParam(required = false) String q,
+                                       HttpServletRequest request) {
+//
+        return employeeService.getAll(q);
     }
+
+
+    /* ---------- CRUD ACCOUNT ---------- */
+    // Get All Account
+    @GetMapping("/accounts")
+    public List<Account> getAccounts(HttpServletRequest request) {
+//        requireAdmin(request);
+        return accountService.findAll();
+    }
+
+    // GET account by ID
+    @GetMapping("/accounts/{id}")
+    public Account getAccount(@PathVariable Integer id, HttpServletRequest request) {
+        return accountService.findById(id);
+    }
+
+    // CREATE new account
+    @PostMapping("/accounts")
+    @ResponseStatus(HttpStatus.CREATED)
+    public void createAccount(@RequestBody Account account, HttpServletRequest request) {
+        accountService.save(account);
+    }
+
+    // UPDATE account
+    @PutMapping("/accounts/{id}/edit")
+    public void updateAccount(@PathVariable Integer id,
+                                 @RequestBody Account updatedAccount,
+                                 HttpServletRequest request) {
+        Account existing = accountService.findById(id);
+
+        existing.setFullName(updatedAccount.getFullName());
+        existing.setPasswordHash(updatedAccount.getPasswordHash());
+        existing.setRole(updatedAccount.getRole());
+        // Add other fields as needed
+
+        accountService.save(existing);
+    }
+
+    // DELETE account
+    @DeleteMapping("/accounts/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAccount(@PathVariable Integer id, HttpServletRequest request) {
+        if (accountService.findById(id) == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found");
+        }
+        accountService.delete(id);
+    }
+
 }

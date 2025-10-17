@@ -19,5 +19,5 @@ public class EmployeeResponse {
     private BigDecimal salary;
     private String status;
     private LocalDateTime createdAt;
-    private String employeeGmail;
+
 }

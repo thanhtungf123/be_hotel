@@ -15,5 +15,5 @@ public class EmployeeRequest {
     private LocalDate hireDate;
     private BigDecimal salary;
     private String status;
-    private String employeeGmail;
+
 }

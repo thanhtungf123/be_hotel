@@ -18,8 +18,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
         where (:q is null or :q = '' or
               lower(e.employeeCode) like lower(concat('%', :q, '%')) or
               lower(e.department)   like lower(concat('%', :q, '%')) or
-              lower(e.position)     like lower(concat('%', :q, '%')) or
-              lower(e.employeeGmail)like lower(concat('%', :q, '%')))
+              lower(e.position)     like lower(concat('%', :q, '%')))
         """)
     List<Employee> search(String q);
 }
