@@ -35,6 +35,8 @@ public class BookingQueryServiceImpl implements BookingQueryService {
                 s.setRoomImageUrl(b.getRoom().getImageUrl());
                 s.setBedLayout(b.getRoom().getBedLayout() != null ? b.getRoom().getBedLayout().getLayoutName() : null);
                 s.setGuests(b.getRoom().getCapacity());
+                s.setCancelReason(b.getCancelReason());
+
             }
             s.setCheckIn(b.getCheckIn());
             s.setCheckOut(b.getCheckOut());
@@ -48,6 +50,6 @@ public class BookingQueryServiceImpl implements BookingQueryService {
             return s;
         }).toList();
 
-        return new PagedResponse<>(items, (int) page.getTotalElements(), page.getNumber(), page.getSize());
+        return new PagedResponse<>(items, page.getTotalElements(), page.getNumber(), page.getSize());
     }
 }

@@ -16,8 +16,8 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
         SELECT b FROM BookingEntity b
         WHERE (:accountId IS NULL OR b.account.id = :accountId)
           AND (:status IS NULL OR LOWER(b.status) = LOWER(:status))
-        ORDER BY b.createdAt DESC
     """)
+
     Page<BookingEntity> findForHistory(@Param("accountId") Integer accountId,
                                        @Param("status") String status,
                                        Pageable pageable);

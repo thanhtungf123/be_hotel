@@ -30,4 +30,21 @@ public class BookingQueryController {
         Pageable pageable = PageRequest.of(Math.max(page,0), Math.max(size,1), Sort.by("createdAt").descending());
         return ResponseEntity.ok(bookingQueryService.listMine(accountId, status, pageable));
     }
+
+    @GetMapping("/cancel-requests")
+    public ResponseEntity<PagedResponse<BookingSummary>> listCancelRequests(
+            @RequestHeader("X-Auth-Token") String token,
+            @RequestParam(value="page", defaultValue="0") int page,
+            @RequestParam(value="size", defaultValue="10") int size
+    ){
+        var acc = authService.requireAccount(token);
+        String role = acc.getRole()!=null ? acc.getRole().getName() : "";
+        if (!"admin".equalsIgnoreCase(role) && !"staff".equalsIgnoreCase(role)) {
+            return ResponseEntity.status(403)
+                    .body(new PagedResponse<>(java.util.List.of(), 0, page, size));
+        }
+        var pageable = PageRequest.of(Math.max(page,0), Math.max(size,1), Sort.by("createdAt").descending());
+        return ResponseEntity.ok(bookingQueryService.listMine(null, "cancel_requested", pageable));
+    }
+
 }

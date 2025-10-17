@@ -81,7 +81,7 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        b.setStatus("cancellation_requested");
+        b.setStatus("cancel_requested");
         b.setCancelReason(reason);
         b.setCancelRequestedAt(LocalDateTime.now());
         bookingRepository.save(b);
@@ -93,7 +93,7 @@ public class BookingServiceImpl implements BookingService {
         BookingEntity b = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
 
-        if (!"cancellation_requested".equalsIgnoreCase(b.getStatus())) {
+        if (!"cancel_requested".equalsIgnoreCase(b.getStatus())) {
             throw new IllegalStateException("Đơn không ở trạng thái chờ hủy");
         }
 

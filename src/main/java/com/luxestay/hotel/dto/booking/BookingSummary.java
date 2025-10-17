@@ -16,6 +16,7 @@ public class BookingSummary {
     private Long nights;          // số đêm
     private BigDecimal totalPrice;
     private String status;
+    private String cancelReason;
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -49,4 +50,7 @@ public class BookingSummary {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getCancelReason() { return cancelReason; }
+    public void setCancelReason(String cancelReason) { this.cancelReason = cancelReason; }
 }
