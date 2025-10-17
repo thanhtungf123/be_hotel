@@ -78,4 +78,10 @@ public class AuthService {
     public void logout(String token) {
         sessions.remove(token);
     }
+
+    public Account requireAccount(String token) {
+        Integer id = verify(token).orElseThrow(() -> new IllegalArgumentException("Bạn cần đăng nhập"));
+        return accountRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
+    }
 }

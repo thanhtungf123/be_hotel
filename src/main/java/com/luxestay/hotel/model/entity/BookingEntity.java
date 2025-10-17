@@ -7,7 +7,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "bookings")
+@Table(name = "bookings",
+        indexes = {
+                @Index(name = "ix_bookings_account_status_created", columnList = "account_id, status, created_at")
+        })
 public class BookingEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -31,11 +34,23 @@ public class BookingEntity {
     @Column(name = "total_price")
     private BigDecimal totalPrice;
 
-    @Column(name = "status")
+    @Column(name = "status", length = 32)
     private String status;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "cancel_reason", columnDefinition = "NVARCHAR(MAX)")
+    private String cancelReason;
+
+    @Column(name = "cancel_requested_at")
+    private LocalDateTime cancelRequestedAt;
+
+    @Column(name = "cancel_approved_by")
+    private Integer cancelApprovedBy;
+
+    @Column(name = "cancel_approved_at")
+    private LocalDateTime cancelApprovedAt;
 
     // getters/setters
     public Integer getId() { return id; }
@@ -46,6 +61,10 @@ public class BookingEntity {
     public BigDecimal getTotalPrice() { return totalPrice; }
     public String getStatus() { return status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public String getCancelReason() { return cancelReason; }
+    public LocalDateTime getCancelRequestedAt() { return cancelRequestedAt; }
+    public Integer getCancelApprovedBy() { return cancelApprovedBy; }
+    public LocalDateTime getCancelApprovedAt() { return cancelApprovedAt; }
 
     public void setId(Integer id) { this.id = id; }
     public void setAccount(Account account) { this.account = account; }
@@ -55,4 +74,8 @@ public class BookingEntity {
     public void setTotalPrice(BigDecimal totalPrice) { this.totalPrice = totalPrice; }
     public void setStatus(String status) { this.status = status; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public void setCancelReason(String cancelReason) { this.cancelReason = cancelReason; }
+    public void setCancelRequestedAt(LocalDateTime t) { this.cancelRequestedAt = t; }
+    public void setCancelApprovedBy(Integer id) { this.cancelApprovedBy = id; }
+    public void setCancelApprovedAt(LocalDateTime t) { this.cancelApprovedAt = t; }
 }
