@@ -1,11 +1,44 @@
-# --- Mặc định: bỏ theo dõi mọi thứ ---
-/*
+# ----------- Java/Maven -----------
+# Build output
+target/
 
-# --- Cho phép (whitelist) các file/thư mục cần giữ ---
+# If you have additional build dirs
+build/
+dist/
+
+# ----------- IDE / Editor -----------
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+.vscode/
+
+# ----------- OS files -----------
+.DS_Store
+Thumbs.db
+
+# ----------- Logs & temp -----------
+logs/
+*.log
+*.out
+*.tmp
+tmp/
+
+# ----------- Env / Secrets -----------
+.env
+*.env
+.env.*
+
+# ----------- Backups / Misc -----------
+*.bak
+*.swp
+*.swo
+hotel_booking_system.bak
+
+# ----------- Keep important sources -----------
 !.gitignore
-!src/
-!pom.xml
-
-# (tùy chọn) nếu bạn dùng Maven Wrapper thì giữ luôn
-!.mvn/
-!.mvn/wrapper/maven-wrapper.jar
+pom.xml
+src/
+.mvn/
+.mvn/wrapper/maven-wrapper.jar
