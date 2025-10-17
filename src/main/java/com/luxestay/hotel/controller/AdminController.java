@@ -15,6 +15,7 @@ import com.luxestay.hotel.service.EmployeeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -38,6 +39,7 @@ public class AdminController {
     private final AccountService accountService;
     private final EmployeeService employeeService;
 
+    private final PasswordEncoder passwordEncoder;
     /**
      * Guard admin theo X-Auth-Token
      */
@@ -62,7 +64,7 @@ public class AdminController {
 
     /* ---------- CRUD EMPLOYEE ---------- */
     @GetMapping("/employees/{id}")
-    public Employee get(@PathVariable Integer id) {
+    public Employee get(@PathVariable("id") Integer id) {
         return employeeService.get(id);
     }
 
@@ -73,18 +75,18 @@ public class AdminController {
         return employeeService.create(body, accountId);
     }
 
-    @PutMapping("/employees/{id}/edit")
-    public Employee update(@PathVariable Integer id, @RequestBody Employee patch) {
+    @PutMapping("/employees/{id}")
+    public Employee update(@PathVariable("id") Integer id, @RequestBody Employee patch) {
         return employeeService.update(id, patch);
     }
 
-    @DeleteMapping("/employees/{id}/delete")
+    @DeleteMapping("/employees/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Integer id) {
+    public void delete(@PathVariable("id") Integer id) {
         employeeService.delete(id);
     }
     //Get all Employee
-    @GetMapping("/employees/employees")
+    @GetMapping("/employees")
     public List<Employee> getEmployees() {
         return employeeService.getAll();
     }
@@ -100,40 +102,67 @@ public class AdminController {
 
     // GET account by ID
     @GetMapping("/accounts/{id}")
-    public Account getAccount(@PathVariable Integer id, HttpServletRequest request) {
+    public Account getAccount(@PathVariable("id") Integer id, HttpServletRequest request) {
         return accountService.findById(id);
     }
 
     // CREATE new account
     @PostMapping("/accounts")
     @ResponseStatus(HttpStatus.CREATED)
-    public void createAccount(@RequestBody Account account, HttpServletRequest request) {
+    public Account createAccount(@RequestBody Account account,
+                                 @RequestParam(name = "password",required = false) String password,
+                                 HttpServletRequest request) {
+        if (password != null && !password.isBlank()) {
+            // Ưu tiên password (plain) từ query param -> hash
+            account.setPasswordHash(passwordEncoder.encode(password));
+        } else {
+            // Nếu không có password param, mà passwordHash đang là plain → encode (tránh lưu plain text)
+            if (needsEncoding(account.getPasswordHash())) {
+                account.setPasswordHash(passwordEncoder.encode(account.getPasswordHash()));
+            }
+        }
+
         accountService.save(account);
+        return account;
     }
 
     // UPDATE account
-    @PutMapping("/accounts/{id}/edit")
-    public void updateAccount(@PathVariable Integer id,
-                                 @RequestBody Account updatedAccount,
-                                 HttpServletRequest request) {
+    @PutMapping("/accounts/{id}")
+    public void updateAccount(@PathVariable("id") Integer id,
+                              @RequestBody Account updatedAccount,
+                              @RequestParam(name = "password",required = false) String password) {
         Account existing = accountService.findById(id);
 
         existing.setFullName(updatedAccount.getFullName());
         existing.setPasswordHash(updatedAccount.getPasswordHash());
         existing.setRole(updatedAccount.getRole());
         // Add other fields as needed
-
+        if (password != null && !password.isBlank()) {
+            existing.setPasswordHash(passwordEncoder.encode(password));
+        } else if (updatedAccount.getPasswordHash() != null) {
+            existing.setPasswordHash(
+                    needsEncoding(updatedAccount.getPasswordHash())
+                            ? passwordEncoder.encode(updatedAccount.getPasswordHash())
+                            : updatedAccount.getPasswordHash()
+            );
+        }
         accountService.save(existing);
     }
 
     // DELETE account
     @DeleteMapping("/accounts/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteAccount(@PathVariable Integer id, HttpServletRequest request) {
+    public void deleteAccount(@PathVariable("id") Integer id, HttpServletRequest request) {
         if (accountService.findById(id) == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found");
         }
         accountService.delete(id);
     }
-
+    //==========================================================================================
+    private boolean needsEncoding(String rawOrHash) {
+        if (rawOrHash == null || rawOrHash.isBlank()) return false; // không encode chuỗi rỗng
+        String s = rawOrHash.trim();
+        // Bcrypt thường bắt đầu bằng $2a$ / $2b$ / $2y$ (Spring Security BCryptPasswordEncoder)
+        return !(s.startsWith("$2a$") || s.startsWith("$2b$") || s.startsWith("$2y$"));
+    }
 }
