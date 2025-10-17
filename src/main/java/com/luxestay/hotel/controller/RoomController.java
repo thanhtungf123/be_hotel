@@ -16,6 +16,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/rooms")
+// CORS - cái này cấp quyền cho đường dẫn FE nếu không call được API từ FE tới BE
 @CrossOrigin(origins = {
         "http://localhost:5173",
         "http://127.0.0.1:5173",

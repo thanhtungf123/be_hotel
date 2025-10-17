@@ -11,6 +11,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/employees")
+// CORS - cái này cấp quyền cho đường dẫn FE nếu không call được API từ FE tới BE
 @CrossOrigin(origins = {
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -22,11 +23,13 @@ public class EmployeeController {
     @Autowired
     private EmployeeService employeeService;
 
+    // Kiểm tra tính sống của controller
     @GetMapping("/health")
     public ResponseEntity<String> healthCheck() {
         return ResponseEntity.ok("EmployeeController is working!");
     }
 
+    // Lấy danh sách tất cả nhân viên
     @GetMapping
     public ResponseEntity<List<Employee>> getAllEmployees() {
         try {
@@ -37,6 +40,7 @@ public class EmployeeController {
         }
     }
 
+    // Lấy thông tin nhân viên theo ID
     @GetMapping("/{id}")
     public ResponseEntity<Employee> getEmployeeById(@PathVariable int id) {
         try {
@@ -51,6 +55,7 @@ public class EmployeeController {
         }
     }
 
+    // Tạo nhân viên mới
     @PostMapping
     public ResponseEntity<?> createEmployee(@RequestBody Employee employee) {
         try {
@@ -63,6 +68,7 @@ public class EmployeeController {
         }
     }
 
+    // Cập nhật thông tin nhân viên
     @PutMapping("/{id}")
     public ResponseEntity<Employee> updateEmployee(@PathVariable int id, @RequestBody Employee employee) {
         try {
@@ -79,6 +85,7 @@ public class EmployeeController {
         }
     }
 
+    // Xóa nhân viên
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteEmployee(@PathVariable int id) {
         try {
