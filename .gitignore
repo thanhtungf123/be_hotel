@@ -1,5 +1,13 @@
-.idea
-.target
+# IntelliJ / Eclipse
+.idea/
+*.iml
+.classpath
+.project
 
+# Maven
+target/
+*.class
 
-!.src
+# OS junk
+.DS_Store
+Thumbs.db
