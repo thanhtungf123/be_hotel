@@ -18,6 +18,7 @@ public class BookingQueryController {
     private final BookingQueryService bookingQueryService;
 
     // GET /api/bookings/my?status=&page=&size=
+    // Lấy lịch sử đặt phòng của KH đang đăng nhập (có lọc status)
     @GetMapping("/my")
     public ResponseEntity<PagedResponse<BookingSummary>> myBookings(
             @RequestHeader("X-Auth-Token") String token,
@@ -31,6 +32,7 @@ public class BookingQueryController {
         return ResponseEntity.ok(bookingQueryService.listMine(accountId, status, pageable));
     }
 
+    // Lấy danh sách yêu cầu hủy đặt phòng của Admin/Staff
     @GetMapping("/cancel-requests")
     public ResponseEntity<PagedResponse<BookingSummary>> listCancelRequests(
             @RequestHeader("X-Auth-Token") String token,

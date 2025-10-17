@@ -14,6 +14,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/bookings")
 @RequiredArgsConstructor
+// CORS - cái này cấp quyền cho đường dẫn FE nếu không call được API từ FE tới BE
 @CrossOrigin(origins = {
         "http://localhost:5173", "http://127.0.0.1:5173",
         "http://localhost:4173", "http://localhost:3000"
@@ -34,7 +35,7 @@ public class BookingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(res);
     }
 
-    /** KH gửi yêu cầu hủy */
+    // KH gửi yêu cầu hủy
     @PatchMapping("/{id}/request-cancel")
     public ResponseEntity<?> requestCancel(
             @PathVariable("id") Integer id,
@@ -50,7 +51,7 @@ public class BookingController {
         ));
     }
 
-    /** Admin/Staff duyệt/từ chối yêu cầu hủy */
+    // Admin/Staff duyệt/từ chối yêu cầu hủy
     @PatchMapping("/{id}/cancel-decision")
     public ResponseEntity<?> cancelDecision(
             @PathVariable("id") Integer id,
@@ -67,7 +68,7 @@ public class BookingController {
         return ResponseEntity.ok(Map.of("bookingId", id));
     }
 
-    /** Lịch sử của KH đang đăng nhập (có lọc status) */
+    // Lịch sử của KH đang đăng nhập (có lọc status)
     @GetMapping
     public ResponseEntity<PagedResponse<BookingSummary>> history(
             @RequestHeader("X-Auth-Token") String token,
@@ -80,7 +81,7 @@ public class BookingController {
         return ResponseEntity.ok(res);
     }
 
-    /** Alias theo spec ticket: PATCH /bookings/{id}/approve-cancel */
+    // Alias theo spec ticket: PATCH /bookings/{id}/approve-cancel
     @PatchMapping("/{id}/approve-cancel")
     public ResponseEntity<?> approveCancelAlias(
             @PathVariable("id") Integer id,
