@@ -38,7 +38,9 @@ hotel_booking_system.bak
 
 # ----------- Keep important sources -----------
 !.gitignore
-pom.xml
+!src
+!target
+!pom.xml
 src/
 .mvn/
 .mvn/wrapper/maven-wrapper.jar
