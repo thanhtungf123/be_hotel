@@ -6,6 +6,7 @@ import com.luxestay.hotel.dto.employee.EmployeeResponse;
 import com.luxestay.hotel.model.Employee;
 import com.luxestay.hotel.repository.AccountRepository;
 import com.luxestay.hotel.repository.EmployeeRepository;
+import com.luxestay.hotel.repository.RoleRepository;
 import com.luxestay.hotel.service.AccountService;
 import com.luxestay.hotel.service.AuthService;
 
@@ -38,7 +39,7 @@ public class AdminController {
     private final AuthService authService;
     private final AccountService accountService;
     private final EmployeeService employeeService;
-
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     /**
      * Guard admin theo X-Auth-Token
@@ -85,6 +86,7 @@ public class AdminController {
     public void delete(@PathVariable("id") Integer id) {
         employeeService.delete(id);
     }
+
     //Get all Employee
     @GetMapping("/employees")
     public List<Employee> getEmployees() {
@@ -122,7 +124,7 @@ public class AdminController {
             }
         }
 
-        accountService.save(account);
+        accountService.saveCreate(account);
         return account;
     }
 
@@ -130,14 +132,17 @@ public class AdminController {
     @PutMapping("/accounts/{id}")
     public void updateAccount(@PathVariable("id") Integer id,
                               @RequestBody Account updatedAccount,
-                              @RequestParam(name = "password",required = false) String password) {
+                              @RequestParam(name = "password",required = false) String password,
+                              @RequestParam(name = "active", required = false) Boolean active) {
         Account existing = accountService.findById(id);
 
         existing.setFullName(updatedAccount.getFullName());
         existing.setPasswordHash(updatedAccount.getPasswordHash());
         existing.setRole(updatedAccount.getRole());
         // Add other fields as needed
-        if (password != null && !password.isBlank()) {
+
+        // 🔐 Password
+            if (password != null && !password.isBlank()) {
             existing.setPasswordHash(passwordEncoder.encode(password));
         } else if (updatedAccount.getPasswordHash() != null) {
             existing.setPasswordHash(
@@ -146,6 +151,14 @@ public class AdminController {
                             : updatedAccount.getPasswordHash()
             );
         }
+        // ⚙️ Update isActive: ưu tiên body, fallback params
+        if (updatedAccount.getIsActive() != null) {
+            existing.setIsActive(updatedAccount.getIsActive());
+        } else if (active != null) {                // 👈 fallback từ query param
+            existing.setIsActive(active);
+        }
+
+
         accountService.save(existing);
     }
 

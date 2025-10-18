@@ -2,9 +2,11 @@ package com.luxestay.hotel.service;
 
 import com.luxestay.hotel.model.Account;
 import com.luxestay.hotel.repository.AccountRepository;
+import com.luxestay.hotel.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.List;
 public class AccountService {
 
     private final AccountRepository accountRepository;
+    private final RoleRepository roleRepository;
 
     public List<Account> findAll() {
         return accountRepository.findAll();
@@ -22,12 +25,18 @@ public class AccountService {
     public Account findById(int id) {
         return accountRepository.findById(id).orElse(null);
     }
-
+    @Transactional
     public void  save(Account account) {
+//        account.setRole(roleRepository.findById(1).orElse(null));
         accountRepository.save(account);
     }
 
-
+    @Transactional
+    public void  saveCreate(Account account) {
+        account.setRole(roleRepository.findById(1).orElse(null));
+        accountRepository.save(account);
+    }
+    @Transactional
     public void delete(int id) {
         Account account = accountRepository.findById(id).orElse(null);
         if (account != null) {
