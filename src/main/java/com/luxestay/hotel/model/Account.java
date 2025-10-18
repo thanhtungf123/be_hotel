@@ -31,6 +31,7 @@ public class Account {
     @Column(name = "provider_id", length = 255)
     private String providerId;
 
+
     @Column(name = "is_active")
     private Boolean isActive = true;
 
