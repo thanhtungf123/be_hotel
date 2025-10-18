@@ -47,8 +47,8 @@ public class CheckoutController {
 
             String description = "Thanh toan dat phong" + booking.getId();
 
-            String returnUrl = "http://localhost:3000/payment/success?bookingId=" + booking.getId();
-            String cancelUrl = "http://localhost:3000/payment/cancel?bookingId=" + booking.getId();
+            String returnUrl = "http://localhost:8080/payment/sucess?bookingId=" + booking.getId();
+            String cancelUrl = "http://localhost:8080/payment/cancel?bookingId=" + booking.getId();
 
             PaymentLinkItem item = PaymentLinkItem.builder()
                     .name("Thanh toan dat phong khach san")

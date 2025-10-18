@@ -41,7 +41,30 @@ public class PaymentController {
             throws JsonProcessingException, IllegalArgumentException {
         try {
             WebhookData data = payOS.webhooks().verify(body);
-            System.out.println(data);
+            System.out.println("Webhook data received: " + data);
+
+            if ("00".equals(data.getCode())) {
+                long orderCode = data.getOrderCode();
+
+                Optional<BookingEntity> bookingOpt = bookingRepository.findById((int) orderCode);
+
+                if (bookingOpt.isPresent()) {
+                    BookingEntity booking = bookingOpt.get();
+
+                    if ("pending".equalsIgnoreCase(booking.getStatus())) {
+                        booking.setStatus("confirmed");
+                        bookingRepository.save(booking);
+                        System.out.println("Successfully updated booking status for ID: " + orderCode);
+                    } else {
+                        System.out.println("Booking " + orderCode + " status is already: " + booking.getStatus());
+                    }
+                } else {
+                    System.err.println("Webhook warning: Booking not found with ID: " + orderCode);
+                }
+            } else {
+                System.out.println("Payment failed or not yet completed for order: " + data.getOrderCode() + " with code: " + data.getCode());
+            }
+
             return ApiResponse.success("Webhook delivered", data);
         } catch (Exception e) {
             e.printStackTrace();

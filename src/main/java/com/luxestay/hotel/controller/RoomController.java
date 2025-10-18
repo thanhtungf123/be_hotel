@@ -30,6 +30,8 @@ public class RoomController {
     @GetMapping
     public List<Room> getRooms() { return roomService.listRooms(); }
 
+
+
     @GetMapping("/search")
     public PagedResponse<Room> search(
             @RequestParam(name = "priceMax", required = false) Integer priceMax,
