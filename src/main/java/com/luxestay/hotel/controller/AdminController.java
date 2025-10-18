@@ -86,6 +86,7 @@ public class AdminController {
     public void delete(@PathVariable("id") Integer id) {
         employeeService.delete(id);
     }
+
     //Get all Employee
     @GetMapping("/employees")
     public List<Employee> getEmployees() {

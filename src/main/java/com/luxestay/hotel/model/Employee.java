@@ -1,5 +1,8 @@
 package com.luxestay.hotel.model;
 
+
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -21,6 +24,8 @@ public class Employee {
     // Nullable 1–1 to Account
     @OneToOne(fetch = FetchType.LAZY, optional = true)   // optional=true is default; keeps it nullable at JPA level
     @JoinColumn(name = "account_id", nullable = true)    // column can be NULL
+//    @JsonManagedReference
+    @JsonBackReference
     private Account account;
 
     @Column(name = "employee_code", length = 20)
