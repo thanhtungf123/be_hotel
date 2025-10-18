@@ -33,4 +33,8 @@ public class Account {
 
     @Column(name = "is_active")
     private Boolean isActive = true;
+
+    // inverse side (no join column here)
+    @OneToOne(mappedBy = "account", fetch = FetchType.LAZY)
+    private Employee employee;
 }

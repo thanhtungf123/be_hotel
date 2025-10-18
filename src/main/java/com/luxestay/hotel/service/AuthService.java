@@ -31,8 +31,8 @@ public class AuthService {
             throw new IllegalArgumentException("Email đã tồn tại");
         }
 
-        Role customerRole = roleRepository.findByName("customer")
-                .orElseThrow(() -> new IllegalStateException("Không tìm thấy role 'customer'"));
+        Role customerRole = roleRepository.findByName("account")
+                .orElseThrow(() -> new IllegalStateException("Không tìm thấy role 'account'"));
 
         Account acc = Account.builder()
                 .fullName(req.getFullName())
@@ -65,6 +65,7 @@ public class AuthService {
 
         String token = UUID.randomUUID().toString();
         sessions.put(token, acc.getId());
+//        sessions.put("role", acc.getRole().);
 
         return new AuthResponse(token, acc.getId(), acc.getFullName(),
                 acc.getRole() != null ? acc.getRole().getName() : null);
@@ -76,5 +77,11 @@ public class AuthService {
 
     public void logout(String token) {
         sessions.remove(token);
+    }
+
+    public Account requireAccount(String token) {
+        Integer id = verify(token).orElseThrow(() -> new IllegalArgumentException("Bạn cần đăng nhập"));
+        return accountRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
     }
 }
