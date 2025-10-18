@@ -1,5 +1,16 @@
-# Default ignored files
-/shelf/
-/workspace.xml
-# Editor-based HTTP Client requests
-/httpRequests/
+# IntelliJ / Eclipse
+.idea/
+*.iml
+.classpath
+.project
+
+# Maven
+target/
+*.class
+
+# OS junk
+.DS_Store
+Thumbs.db
+.idea/
+target/
+*.iml
