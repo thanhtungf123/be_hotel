@@ -21,4 +21,6 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
     Page<BookingEntity> findForHistory(@Param("accountId") Integer accountId,
                                        @Param("status") String status,
                                        Pageable pageable);
+
+    Optional<BookingEntity> findAllByAccount_Id(Integer accountId);
 }

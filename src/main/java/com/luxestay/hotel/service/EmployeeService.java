@@ -2,8 +2,11 @@ package com.luxestay.hotel.service;
 
 import com.luxestay.hotel.model.Account;
 import com.luxestay.hotel.model.Employee;
+import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.repository.AccountRepository;
+import com.luxestay.hotel.repository.BookingRepository;
 import com.luxestay.hotel.repository.EmployeeRepository;
+import com.luxestay.hotel.repository.RoleRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -20,6 +23,7 @@ public class EmployeeService {
 
     private final EmployeeRepository employeeRepo;
     private final AccountRepository accountRepo;
+    private final BookingRepository bookingRepo;
 
     public Employee create(Employee e, Integer accountIdOrNull) {
         if (accountIdOrNull != null) {
@@ -87,5 +91,9 @@ public class EmployeeService {
 
     public List<Employee> getAll() {
         return employeeRepo.findAll();
+    }
+
+    public List<BookingEntity> getHistory(Integer id) {
+        return bookingRepo.findAllByAccount_Id(id).stream().toList();
     }
 }
