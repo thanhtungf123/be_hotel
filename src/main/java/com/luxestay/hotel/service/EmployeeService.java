@@ -41,21 +41,21 @@ public class EmployeeService {
     }
 
     public Employee update(Integer id, Employee patch) {
-        Employee e = get(id);
+        Employee e = employeeRepo.findById(id).orElseThrow(() -> new NoSuchElementException("Employee not found: " + id));
         if (patch.getEmployeeCode() != null) e.setEmployeeCode(patch.getEmployeeCode());
         if (patch.getPosition() != null) e.setPosition(patch.getPosition());
         if (patch.getDepartment() != null) e.setDepartment(patch.getDepartment());
         if (patch.getHireDate() != null) e.setHireDate(patch.getHireDate());
         if (patch.getSalary() != null) e.setSalary(patch.getSalary());
         if (patch.getStatus() != null) e.setStatus(patch.getStatus());
-        return e;
+        return employeeRepo.save(e);
     }
 
 
     public void delete(Integer id) {
         Employee e = employeeRepo.findById(id).orElseThrow(() -> new NoSuchElementException("Employee not found: " + id));
         if(e != null) {
-            e.setStatus("Deactivated");
+            e.setStatus("terminated");
             employeeRepo.save(e);
         }
     }
