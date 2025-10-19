@@ -36,10 +36,10 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private final AuthService authService;
+
     private final AccountService accountService;
     private final EmployeeService employeeService;
-    private final RoleRepository roleRepository;
+
     private final PasswordEncoder passwordEncoder;
     /**
      * Guard admin theo X-Auth-Token
