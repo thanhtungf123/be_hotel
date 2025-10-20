@@ -6,19 +6,27 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<BookingEntity, Integer> {
 
-    Optional<BookingEntity> findByIdAndAccount_Id(Integer id, Integer accountId);
+  Optional<BookingEntity> findByIdAndAccount_Id(Integer id, Integer accountId);
 
-    @Query("""
-        SELECT b FROM BookingEntity b
-        WHERE (:accountId IS NULL OR b.account.id = :accountId)
-          AND (:status IS NULL OR LOWER(b.status) = LOWER(:status))
-    """)
+  @Query("""
+          SELECT b FROM BookingEntity b
+          WHERE (:accountId IS NULL OR b.account.id = :accountId)
+            AND (:status IS NULL OR LOWER(b.status) = LOWER(:status))
+      """)
 
-    Page<BookingEntity> findForHistory(@Param("accountId") Integer accountId,
-                                       @Param("status") String status,
-                                       Pageable pageable);
+  Page<BookingEntity> findForHistory(@Param("accountId") Integer accountId,
+      @Param("status") String status,
+      Pageable pageable);
+
+  // Check if room has active bookings (for status update validation)
+  boolean existsByRoom_IdAndStatusInAndCheckOutAfter(
+      Integer roomId,
+      List<String> statuses,
+      LocalDate date);
 }
