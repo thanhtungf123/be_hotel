@@ -4,6 +4,7 @@ package com.luxestay.hotel.controller;
 import com.luxestay.hotel.dto.employee.EmployeeRequest;
 import com.luxestay.hotel.dto.employee.EmployeeResponse;
 import com.luxestay.hotel.model.Employee;
+import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.repository.AccountRepository;
 import com.luxestay.hotel.repository.EmployeeRepository;
 import com.luxestay.hotel.repository.RoleRepository;
@@ -36,10 +37,10 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private final AuthService authService;
+
     private final AccountService accountService;
     private final EmployeeService employeeService;
-    private final RoleRepository roleRepository;
+
     private final PasswordEncoder passwordEncoder;
     /**
      * Guard admin theo X-Auth-Token
@@ -177,5 +178,10 @@ public class AdminController {
         String s = rawOrHash.trim();
         // Bcrypt thường bắt đầu bằng $2a$ / $2b$ / $2y$ (Spring Security BCryptPasswordEncoder)
         return !(s.startsWith("$2a$") || s.startsWith("$2b$") || s.startsWith("$2y$"));
+    }
+    //==========================================================================================
+    @GetMapping("/accountHistory/{id}")
+    public List<BookingEntity> getAccountHistory(@PathVariable("id") Integer id) {
+        return employeeService.getHistory(id);
     }
 }
