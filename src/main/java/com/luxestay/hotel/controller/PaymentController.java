@@ -1,38 +1,30 @@
 package com.luxestay.hotel.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.luxestay.hotel.model.entity.BookingEntity;
-import com.luxestay.hotel.model.Payment;
-import com.luxestay.hotel.repository.BookingRepository;
+// Bỏ các import không dùng đến BookingEntity, Optional, BookingRepository
 import com.luxestay.hotel.repository.PaymentRepository;
 import com.luxestay.hotel.response.ApiResponse;
-import jakarta.persistence.EntityNotFoundException;
+import com.luxestay.hotel.service.BookingService; // Đã import
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import vn.payos.PayOS;
-import vn.payos.model.v2.paymentRequests.PaymentLink;
 import vn.payos.model.webhooks.WebhookData;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/payments")
 public class PaymentController {
     private final PayOS payOS;
-    private final PaymentRepository paymentRepository;
-    private final BookingRepository bookingRepository;
+    private final BookingService bookingService; // Chính xác
 
     @Autowired
-    public PaymentController(PayOS payOS, PaymentRepository paymentRepository, BookingRepository bookingRepository) {
+    public PaymentController(PayOS payOS,
+                             PaymentRepository paymentRepository,
+                             BookingService bookingService) { // Chính xác
         this.payOS = payOS;
-        this.paymentRepository = paymentRepository;
-        this.bookingRepository = bookingRepository;
+        this.bookingService = bookingService;
     }
 
 
@@ -46,21 +38,15 @@ public class PaymentController {
             if ("00".equals(data.getCode())) {
                 long orderCode = data.getOrderCode();
 
-                Optional<BookingEntity> bookingOpt = bookingRepository.findById((int) orderCode);
+                try {
+                    bookingService.confirmBookingPayment((int) orderCode);
+                    System.out.println("Successfully processed payment confirmation for ID: " + orderCode);
 
-                if (bookingOpt.isPresent()) {
-                    BookingEntity booking = bookingOpt.get();
-
-                    if ("pending".equalsIgnoreCase(booking.getStatus())) {
-                        booking.setStatus("confirmed");
-                        bookingRepository.save(booking);
-                        System.out.println("Successfully updated booking status for ID: " + orderCode);
-                    } else {
-                        System.out.println("Booking " + orderCode + " status is already: " + booking.getStatus());
-                    }
-                } else {
-                    System.err.println("Webhook warning: Booking not found with ID: " + orderCode);
+                } catch (Exception e) {
+                    System.err.println("Error processing payment confirmation logic: " + e.getMessage());
                 }
+                // ========================
+
             } else {
                 System.out.println("Payment failed or not yet completed for order: " + data.getOrderCode() + " with code: " + data.getCode());
             }

@@ -2,6 +2,7 @@ package com.luxestay.hotel.service;
 
 import com.luxestay.hotel.dto.PagedResponse;
 import com.luxestay.hotel.dto.booking.*;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface BookingService {
     BookingResponse create(Integer accountId, BookingRequest req);
@@ -14,4 +15,8 @@ public interface BookingService {
 
     // lịch sử đặt phòng (của 1 account)
     PagedResponse<BookingSummary> history(Integer accountId, String status, Integer page, Integer size);
+
+    @Transactional
+        // Đảm bảo cả 2 cùng thành công
+    void confirmBookingPayment(int bookingId);
 }

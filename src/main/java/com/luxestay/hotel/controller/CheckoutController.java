@@ -10,12 +10,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.payos.PayOS;
+
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 import vn.payos.model.v2.paymentRequests.PaymentLinkItem;
+import vn.payos.model.v2.paymentRequests.PaymentLink;
+
 
 import java.math.BigDecimal;
 import java.util.Optional;
+// Thêm import này vào đầu file
 
 @RestController
 @RequestMapping("/api/checkout")
@@ -47,7 +51,7 @@ public class CheckoutController {
 
             String description = "Thanh toan dat phong" + booking.getId();
 
-            String returnUrl = "http://localhost:8080/payment/sucess?bookingId=" + booking.getId();
+            String returnUrl = "http://localhost:8080/payment/success?bookingId=" + booking.getId();
             String cancelUrl = "http://localhost:8080/payment/cancel?bookingId=" + booking.getId();
 
             PaymentLinkItem item = PaymentLinkItem.builder()
@@ -75,4 +79,7 @@ public class CheckoutController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.error("Failed to create payment link: " + e.getMessage()));
         }
     }
+
+
+
 }

@@ -23,6 +23,8 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
                                        @Param("status") String status,
                                        Pageable pageable);
 
+    BookingEntity findBookingById(Integer bookingId);
+
     // Check if room has active bookings (for status update validation)
     boolean existsByRoom_IdAndStatusInAndCheckOutAfter(
             Integer roomId,
