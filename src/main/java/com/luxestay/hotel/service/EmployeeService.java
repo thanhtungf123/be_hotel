@@ -2,8 +2,11 @@ package com.luxestay.hotel.service;
 
 import com.luxestay.hotel.model.Account;
 import com.luxestay.hotel.model.Employee;
+import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.repository.AccountRepository;
+import com.luxestay.hotel.repository.BookingRepository;
 import com.luxestay.hotel.repository.EmployeeRepository;
+import com.luxestay.hotel.repository.RoleRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -20,6 +23,7 @@ public class EmployeeService {
 
     private final EmployeeRepository employeeRepo;
     private final AccountRepository accountRepo;
+    private final BookingRepository bookingRepo;
 
     public Employee create(Employee e, Integer accountIdOrNull) {
         if (accountIdOrNull != null) {
@@ -41,21 +45,21 @@ public class EmployeeService {
     }
 
     public Employee update(Integer id, Employee patch) {
-        Employee e = get(id);
+        Employee e = employeeRepo.findById(id).orElseThrow(() -> new NoSuchElementException("Employee not found: " + id));
         if (patch.getEmployeeCode() != null) e.setEmployeeCode(patch.getEmployeeCode());
         if (patch.getPosition() != null) e.setPosition(patch.getPosition());
         if (patch.getDepartment() != null) e.setDepartment(patch.getDepartment());
         if (patch.getHireDate() != null) e.setHireDate(patch.getHireDate());
         if (patch.getSalary() != null) e.setSalary(patch.getSalary());
         if (patch.getStatus() != null) e.setStatus(patch.getStatus());
-        return e;
+        return employeeRepo.save(e);
     }
 
 
     public void delete(Integer id) {
         Employee e = employeeRepo.findById(id).orElseThrow(() -> new NoSuchElementException("Employee not found: " + id));
         if(e != null) {
-            e.setStatus("Deactivated");
+            e.setStatus("terminated");
             employeeRepo.save(e);
         }
     }
@@ -87,5 +91,9 @@ public class EmployeeService {
 
     public List<Employee> getAll() {
         return employeeRepo.findAll();
+    }
+
+    public List<BookingEntity> getHistory(Integer id) {
+        return bookingRepo.findAllByAccount_Id(id).stream().toList();
     }
 }

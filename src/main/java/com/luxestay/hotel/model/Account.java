@@ -1,5 +1,8 @@
 package com.luxestay.hotel.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -31,10 +34,13 @@ public class Account {
     @Column(name = "provider_id", length = 255)
     private String providerId;
 
+
     @Column(name = "is_active")
     private Boolean isActive = true;
 
     // inverse side (no join column here)
-    @OneToOne(mappedBy = "account", fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "account")
+    @JsonIgnore
+//    @JsonBackReference
     private Employee employee;
 }
