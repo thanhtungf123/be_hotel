@@ -30,7 +30,7 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       List<String> statuses,
       LocalDate date);
 
-  // Count total bookings per room (for recommendation: top booked)
+  // Count bookings by room (for popular rooms recommendation)
   @Query("""
       SELECT b.room.id, COUNT(b.id)
       FROM BookingEntity b
@@ -40,7 +40,7 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       """)
   List<Object[]> countBookingsByRoom();
 
-  // Get user's booking history by room type (for personalized recommendation)
+  // Find user's preferred room types (for personalized recommendation)
   @Query("""
       SELECT b.room.bedLayout.id, COUNT(b.id)
       FROM BookingEntity b
@@ -50,4 +50,7 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       ORDER BY COUNT(b.id) DESC
       """)
   List<Object[]> findUserPreferredRoomTypes(@Param("accountId") Integer accountId);
+
+  // Find all bookings by account ID (for employee service)
+  List<BookingEntity> findAllByAccount_Id(Integer accountId);
 }

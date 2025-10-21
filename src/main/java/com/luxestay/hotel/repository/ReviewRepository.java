@@ -1,11 +1,12 @@
 package com.luxestay.hotel.repository;
 
+import com.luxestay.hotel.model.entity.ReviewEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
-public interface ReviewRepository extends JpaRepository<Object, Integer> {
+public interface ReviewRepository extends JpaRepository<ReviewEntity, Integer> {
 
     // Get average rating per room (for recommendation: top rated)
     @Query(value = """
@@ -18,4 +19,3 @@ public interface ReviewRepository extends JpaRepository<Object, Integer> {
             """, nativeQuery = true)
     List<Object[]> findAvgRatingByRoom();
 }
-
