@@ -1,5 +1,6 @@
 package com.luxestay.hotel.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -20,10 +21,10 @@ public class RoomEntity {
     @Column(name = "price_per_night")
     private Integer pricePerNight;
 
-    @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "description")
     private String description;
 
-    @Column(name = "amenities", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "amenities")
     private String amenities;
 
     @Column(name = "status", length = 20)
@@ -37,6 +38,7 @@ public class RoomEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "bed_layout_id")
+    @JsonIgnore
     private BedLayout bedLayout;
 
     /* 👇 NEW: ảnh đại diện phòng (đồng bộ với ảnh primary trong room_images) */

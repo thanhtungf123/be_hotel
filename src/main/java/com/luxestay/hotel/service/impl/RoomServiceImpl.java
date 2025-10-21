@@ -41,14 +41,13 @@ public class RoomServiceImpl implements RoomService {
     public List<Room> listRooms() {
         // Chỉ hiển thị phòng available và visible cho trang chủ
         Page<RoomEntity> page = roomRepository.findForList(
-                List.of("available"), // chỉ lấy phòng available
-                null, // layoutNames
-                null, // minPrice
-                null, // maxPrice
-                null, // q
+                List.of("available"),
+                null,
+                null,
+                null,
+                null,
                 PageRequest.of(0, 50, Sort.by("pricePerNight").ascending()));
 
-        // Filter only visible rooms
         return page.getContent().stream()
                 .filter(r -> Boolean.TRUE.equals(r.getIsVisible()))
                 .map(RoomMapper::toDto)
@@ -57,16 +56,15 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     public List<Room> listAllRoomsForAdmin() {
-        // Return ALL rooms (including hidden ones) for admin panel
+        // Trả về TẤT CẢ phòng cho admin (kể cả hidden)
         Page<RoomEntity> page = roomRepository.findForList(
-                List.of("available", "occupied", "maintenance"), // statusList - all statuses
-                null, // layoutNames
-                null, // minPrice
-                null, // maxPrice
-                null, // q (search query)
-                PageRequest.of(0, 100, Sort.by("id").ascending())); // Get all, sorted by ID
+                List.of("available", "occupied", "maintenance"),
+                null,
+                null,
+                null,
+                null,
+                PageRequest.of(0, 100, Sort.by("id").ascending()));
 
-        // Return ALL rooms without filtering by isVisible
         return page.getContent().stream()
                 .map(RoomMapper::toDto)
                 .toList();
@@ -85,25 +83,16 @@ public class RoomServiceImpl implements RoomService {
                 Optional.ofNullable(c.getSize()).orElse(10),
                 sort);
 
-        // ⇩ Lấy danh sách bed layout người dùng chọn (nếu rỗng => null)
-        List<String> layoutNames = (c.getTypes() == null || c.getTypes().isEmpty())
-                ? null
-                : c.getTypes();
-
-        // ⇩ Lấy danh sách status (available, occupied, maintenance)
-        List<String> statusList = (c.getStatus() == null || c.getStatus().isEmpty())
-                ? null
-                : c.getStatus();
-
-        // Nếu bạn có ô search text riêng thì gán cho q, còn ở đây không dùng:
+        List<String> layoutNames = (c.getTypes() == null || c.getTypes().isEmpty()) ? null : c.getTypes();
+        List<String> statusList = (c.getStatus() == null || c.getStatus().isEmpty()) ? null : c.getStatus();
         String q = null;
 
         Page<RoomEntity> page = roomRepository.findForList(
-                statusList, // 🆕 lọc theo status
-                layoutNames, // lọc theo bed_layouts.layout_name (IN)
-                c.getPriceMin(), // 🆕 minPrice
-                c.getPriceMax(), // maxPrice
-                q, // q
+                statusList,
+                layoutNames,
+                c.getPriceMin(),
+                c.getPriceMax(),
+                q,
                 pageable);
 
         List<RoomEntity> list = new ArrayList<>(page.getContent());
@@ -129,7 +118,7 @@ public class RoomServiceImpl implements RoomService {
             }).toList();
         }
 
-        // Filter only visible rooms
+        // chỉ lấy phòng visible
         list = list.stream()
                 .filter(r -> Boolean.TRUE.equals(r.getIsVisible()))
                 .toList();
@@ -161,7 +150,6 @@ public class RoomServiceImpl implements RoomService {
                 req.getPriceMax(),
                 pageable);
 
-        // Filter only visible rooms
         List<Room> items = page.getContent().stream()
                 .filter(r -> Boolean.TRUE.equals(r.getIsVisible()))
                 .map(RoomMapper::toDto)
@@ -178,13 +166,13 @@ public class RoomServiceImpl implements RoomService {
         room.setRating(4.7);
         room.setReviews(120);
 
-        /* 👇 NEW: lấy gallery từ DB; nếu rỗng thì fallback ảnh đại diện/placeholder */
+        // lấy gallery từ DB; nếu rỗng thì fallback
         List<RoomImage> imgs = roomImageRepository
                 .findByRoom_IdOrderByIsPrimaryDescSortOrderAsc(e.getId());
         List<String> gallery;
         if (!imgs.isEmpty()) {
             gallery = imgs.stream().map(RoomImage::getImageUrl).toList();
-            room.setImageUrl(gallery.get(0)); // đồng bộ ảnh đại diện theo ảnh primary
+            room.setImageUrl(gallery.get(0));
         } else if (room.getImageUrl() != null && !room.getImageUrl().isBlank()) {
             gallery = List.of(room.getImageUrl());
         } else {
@@ -271,7 +259,6 @@ public class RoomServiceImpl implements RoomService {
 
         // Update fields if provided
         if (req.getRoomNumber() != null && !req.getRoomNumber().isBlank()) {
-            // Check if new room number conflicts with another room
             if (!entity.getRoomNumber().equals(req.getRoomNumber()) &&
                     roomRepository.existsByRoomNumber(req.getRoomNumber())) {
                 throw new IllegalArgumentException("Room number already exists");
@@ -331,8 +318,7 @@ public class RoomServiceImpl implements RoomService {
     public void deleteRoom(Long id) {
         RoomEntity entity = roomRepository.findById(id.intValue())
                 .orElseThrow(() -> new IllegalArgumentException("Room not found"));
-
-        // Soft delete - set status to 'deleted' or 'inactive'
+        // Soft delete
         entity.setStatus("deleted");
         roomRepository.save(entity);
     }
@@ -342,15 +328,12 @@ public class RoomServiceImpl implements RoomService {
     public void toggleVisibility(Long id, Boolean isVisible) {
         RoomEntity entity = roomRepository.findById(id.intValue())
                 .orElseThrow(() -> new IllegalArgumentException("Room not found"));
-
-        // Toggle visibility
         entity.setIsVisible(isVisible);
         roomRepository.save(entity);
     }
 
     /*
-     * ====== Phần quản lý ảnh (add / setPrimary / delete) giữ nguyên logic của bạn
-     * ======
+     * ====== Quản lý ảnh (add / setPrimary / delete)
      */
 
     @Override
@@ -362,13 +345,11 @@ public class RoomServiceImpl implements RoomService {
             return List.of();
         }
 
-        boolean hasPrimaryInRequest = images.stream()
-                .anyMatch(x -> Boolean.TRUE.equals(x.getPrimary()));
+        boolean hasPrimaryInRequest = images.stream().anyMatch(x -> Boolean.TRUE.equals(x.getPrimary()));
         if (hasPrimaryInRequest) {
             var exist = roomImageRepository.findByRoom_IdOrderByIsPrimaryDescSortOrderAsc(room.getId());
             exist.forEach(i -> {
-                if (Boolean.TRUE.equals(i.getIsPrimary()))
-                    i.setIsPrimary(false);
+                if (Boolean.TRUE.equals(i.getIsPrimary())) i.setIsPrimary(false);
             });
             roomImageRepository.saveAll(exist);
         }
@@ -376,8 +357,7 @@ public class RoomServiceImpl implements RoomService {
         int autoOrder = 1;
         List<String> gallery = new ArrayList<>();
         for (var req : images) {
-            if (req.getImageUrl() == null || req.getImageUrl().isBlank())
-                continue;
+            if (req.getImageUrl() == null || req.getImageUrl().isBlank()) continue;
             var img = new RoomImage();
             img.setRoom(room);
             img.setImageUrl(req.getImageUrl().trim());
@@ -385,8 +365,7 @@ public class RoomServiceImpl implements RoomService {
             img.setSortOrder(req.getSortOrder() != null ? req.getSortOrder() : autoOrder++);
             roomImageRepository.save(img);
             gallery.add(img.getImageUrl());
-            if (img.getIsPrimary())
-                room.setImageUrl(img.getImageUrl());
+            if (img.getIsPrimary()) room.setImageUrl(img.getImageUrl());
         }
         roomRepository.save(room);
         return gallery;
@@ -437,26 +416,20 @@ public class RoomServiceImpl implements RoomService {
     @Override
     @Transactional
     public void updateRoomStatus(Long id, String newStatus, String reason) {
-        // Validate status values
         if (!newStatus.matches("available|occupied|maintenance")) {
             throw new IllegalArgumentException("Trạng thái không hợp lệ: " + newStatus);
         }
 
-        // Find room
         RoomEntity room = roomRepository.findById(id.intValue())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng với ID: " + id));
 
         String currentStatus = room.getStatus();
-
-        // If same status, no change needed
         if (currentStatus.equals(newStatus)) {
             return;
         }
 
-        // Validate state transitions based on business rules
         validateStatusTransition(room, currentStatus, newStatus);
 
-        // Update status
         room.setStatus(newStatus);
         roomRepository.save(room);
     }
@@ -464,9 +437,7 @@ public class RoomServiceImpl implements RoomService {
     private void validateStatusTransition(RoomEntity room, String currentStatus, String newStatus) {
         switch (currentStatus) {
             case "available":
-                // Available can go to: occupied (via booking) or maintenance (admin)
                 if (newStatus.equals("occupied")) {
-                    // Check if there's an active booking for this room
                     boolean hasActiveBooking = hasActiveBooking(room.getId());
                     if (!hasActiveBooking) {
                         throw new IllegalArgumentException(
@@ -474,29 +445,22 @@ public class RoomServiceImpl implements RoomService {
                                         "Trạng thái 'occupied' được tự động cập nhật khi có khách check-in.");
                     }
                 }
-                // Allow: available → maintenance
                 break;
 
             case "occupied":
-                // Occupied can only go to: available (after checkout)
-                // Cannot go directly to maintenance without checkout
                 if (newStatus.equals("maintenance")) {
                     throw new IllegalArgumentException(
                             "Không thể chuyển trực tiếp từ 'occupied' sang 'maintenance'. " +
                                     "Vui lòng chờ khách checkout (trạng thái available) trước.");
                 }
-                // Allow: occupied → available
                 break;
 
             case "maintenance":
-                // Maintenance can go to: available
-                // Cannot go directly to occupied
                 if (newStatus.equals("occupied")) {
                     throw new IllegalArgumentException(
                             "Không thể chuyển trực tiếp từ 'maintenance' sang 'occupied'. " +
                                     "Vui lòng đặt về 'available' trước, sau đó khách có thể booking.");
                 }
-                // Allow: maintenance → available
                 break;
 
             default:
@@ -630,12 +594,7 @@ public class RoomServiceImpl implements RoomService {
     }
 
     private boolean hasActiveBooking(Integer roomId) {
-        // Check if there's any booking with status: confirmed or checked_in for this
-        // room
-        // that covers today or future dates
         LocalDate today = LocalDate.now();
-
-        // Query bookings for this room with active statuses
         return bookingRepository.existsByRoom_IdAndStatusInAndCheckOutAfter(
                 roomId,
                 List.of("confirmed", "checked_in"),

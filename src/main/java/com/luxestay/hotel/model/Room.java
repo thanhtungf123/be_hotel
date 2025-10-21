@@ -13,17 +13,16 @@ public class Room {
     private boolean popular;
 
     // +++ phục vụ trang Search
-    private Double rating; // 4.6, 4.7...
-    private Integer reviews; // 156, 124...
-    private Integer discount; // 17 (%), nếu có hiển thị badge
-    private String status; // available, occupied, maintenance
-    private Boolean isVisible; // true = shown in search, false = hidden
+    private Double rating;       // 4.6, 4.7...
+    private Integer reviews;     // 156, 124...
+    private Integer discount;    // 17 (%), nếu có hiển thị badge
+    private String status;       // available, occupied, maintenance
+    private Boolean isVisible;   // true = shown in search, false = hidden
 
-    public Room() {
-    }
+    public Room() {}
 
     public Room(Long id, String name, String type, int capacity, int sizeSqm, int priceVnd,
-            String[] amenities, String imageUrl, boolean popular) {
+                String[] amenities, String imageUrl, boolean popular) {
         this.id = id;
         this.name = name;
         this.type = type;
@@ -39,7 +38,6 @@ public class Room {
     public Long getId() {
         return id;
     }
-
     public void setId(Long id) {
         this.id = id;
     }
@@ -47,7 +45,6 @@ public class Room {
     public String getRoomNumber() {
         return roomNumber;
     }
-
     public void setRoomNumber(String roomNumber) {
         this.roomNumber = roomNumber;
     }
@@ -55,7 +52,6 @@ public class Room {
     public String getName() {
         return name;
     }
-
     public void setName(String name) {
         this.name = name;
     }
@@ -63,7 +59,6 @@ public class Room {
     public String getType() {
         return type;
     }
-
     public void setType(String type) {
         this.type = type;
     }
@@ -71,7 +66,6 @@ public class Room {
     public int getCapacity() {
         return capacity;
     }
-
     public void setCapacity(int capacity) {
         this.capacity = capacity;
     }
@@ -79,7 +73,6 @@ public class Room {
     public int getSizeSqm() {
         return sizeSqm;
     }
-
     public void setSizeSqm(int sizeSqm) {
         this.sizeSqm = sizeSqm;
     }
@@ -87,7 +80,6 @@ public class Room {
     public int getPriceVnd() {
         return priceVnd;
     }
-
     public void setPriceVnd(int priceVnd) {
         this.priceVnd = priceVnd;
     }
@@ -95,7 +87,6 @@ public class Room {
     public String[] getAmenities() {
         return amenities;
     }
-
     public void setAmenities(String[] amenities) {
         this.amenities = amenities;
     }
@@ -103,7 +94,6 @@ public class Room {
     public String getImageUrl() {
         return imageUrl;
     }
-
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
     }
@@ -111,7 +101,6 @@ public class Room {
     public boolean isPopular() {
         return popular;
     }
-
     public void setPopular(boolean popular) {
         this.popular = popular;
     }
@@ -119,7 +108,6 @@ public class Room {
     public Double getRating() {
         return rating;
     }
-
     public void setRating(Double rating) {
         this.rating = rating;
     }
@@ -127,7 +115,6 @@ public class Room {
     public Integer getReviews() {
         return reviews;
     }
-
     public void setReviews(Integer reviews) {
         this.reviews = reviews;
     }
@@ -135,7 +122,6 @@ public class Room {
     public Integer getDiscount() {
         return discount;
     }
-
     public void setDiscount(Integer discount) {
         this.discount = discount;
     }
@@ -143,7 +129,6 @@ public class Room {
     public String getStatus() {
         return status;
     }
-
     public void setStatus(String status) {
         this.status = status;
     }
@@ -151,7 +136,6 @@ public class Room {
     public Boolean getIsVisible() {
         return isVisible;
     }
-
     public void setIsVisible(Boolean isVisible) {
         this.isVisible = isVisible;
     }

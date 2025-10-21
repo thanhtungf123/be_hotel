@@ -49,6 +49,8 @@ public class RoomController {
         return roomService.listAllRoomsForAdmin();
     }
 
+
+
     @GetMapping("/search")
     public PagedResponse<Room> search(
             @RequestParam(name = "priceMax", required = false) Integer priceMax,
