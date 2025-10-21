@@ -1,0 +1,90 @@
+@startuml room_status_update_sequence_failure
+
+' Room Status Update - Failed Update (Occupied → Available with Active Booking)
+title Room Status Update - Failed Status Change\n(Occupied → Available with Active Booking Conflict)
+
+actor Admin
+participant "Frontend\n(RoomManagement)" as Frontend
+participant "RoomController" as Controller
+participant "AuthHelper" as Auth
+participant "RoomServiceImpl" as Service
+participant "RoomRepository" as RoomRepo
+participant "BookingRepository" as BookingRepo
+database "Database" as DB
+
+Admin -> Frontend: Selects room (Room 102)\nand changes status to "Có sẵn"
+Frontend -> Frontend: Confirm via window.confirm()
+Frontend -> Frontend: Get X-Auth-Token from localStorage
+
+Frontend -> Controller: PATCH /api/rooms/102/status\nBody: {"status": "available", "reason": null}
+activate Controller
+
+Controller -> Auth: requireAdmin(httpRequest)
+activate Auth
+Auth --> Controller: ✅ Admin authorized
+deactivate Auth
+
+Controller -> Service: updateRoomStatus(102, "available", null)
+activate Service
+
+Service -> Service: Validate "available" in\n["available", "occupied", "maintenance"]
+Service --> Service: ✅ Valid status
+
+Service -> RoomRepo: findById(102)
+activate RoomRepo
+RoomRepo -> DB: SELECT * FROM rooms\nWHERE room_id = 102
+activate DB
+DB --> RoomRepo: RoomEntity(id=102, status="occupied")
+deactivate DB
+RoomRepo --> Service: Optional[RoomEntity]
+deactivate RoomRepo
+
+Service -> Service: Check if currentStatus == newStatus
+Service --> Service: "occupied" != "available" ✅
+
+Service -> Service: validateStatusTransition(room, "occupied", "available")
+activate Service
+
+note right of Service
+  Rule: occupied → available
+  requires NO ACTIVE BOOKING
+end note
+
+Service -> BookingRepo: existsByRoom_IdAndStatusInAndCheckOutAfter(\n  roomId=102,\n  statuses=['pending','confirmed','checked_in'],\n  date=today)
+activate BookingRepo
+BookingRepo -> DB: SELECT COUNT(*) FROM bookings\nWHERE room_id=102 AND status IN (...)\nAND check_out > today
+activate DB
+DB --> BookingRepo: count = 1 (⚠️ booking still exists!)
+deactivate DB
+BookingRepo --> Service: true ❌
+deactivate BookingRepo
+
+Service --> Service: ❌ Validation FAILED!
+note right of Service
+  Throw IllegalArgumentException:
+  "Không thể chuyển sang 'available':\n  Phòng đang có booking active"
+end note
+
+Service -->> Controller: ❌ IllegalArgumentException
+deactivate Service
+deactivate Service
+
+Controller -> Controller: Catch IllegalArgumentException
+
+Controller --> Frontend: HTTP 400 Bad Request\nBody: {"message": "Không thể chuyển sang 'available':\n  Phòng đang có booking active"}
+deactivate Controller
+
+Frontend -> Frontend: Extract error message from\nresponse.data.message
+
+Frontend --> Admin: ❌ Show alert:\n"Lỗi: Không thể chuyển sang 'available':\nPhòng đang có booking active"
+
+Frontend -> Frontend: Revert UI changes:\n• Status badge remains "Có người ở" (blue)\n• Dropdown reverts to "occupied"
+
+note over Admin
+  Admin must resolve or complete
+  active bookings before changing
+  status to available
+end note
+
+@enduml
+
