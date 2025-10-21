@@ -29,4 +29,25 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       Integer roomId,
       List<String> statuses,
       LocalDate date);
+
+  // Count total bookings per room (for recommendation: top booked)
+  @Query("""
+      SELECT b.room.id, COUNT(b.id)
+      FROM BookingEntity b
+      WHERE b.status IN ('confirmed', 'checked_in', 'checked_out')
+      GROUP BY b.room.id
+      ORDER BY COUNT(b.id) DESC
+      """)
+  List<Object[]> countBookingsByRoom();
+
+  // Get user's booking history by room type (for personalized recommendation)
+  @Query("""
+      SELECT b.room.bedLayout.id, COUNT(b.id)
+      FROM BookingEntity b
+      WHERE b.account.id = :accountId
+        AND b.status IN ('confirmed', 'checked_in', 'checked_out')
+      GROUP BY b.room.bedLayout.id
+      ORDER BY COUNT(b.id) DESC
+      """)
+  List<Object[]> findUserPreferredRoomTypes(@Param("accountId") Integer accountId);
 }

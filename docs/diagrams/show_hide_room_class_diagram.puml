@@ -1,0 +1,87 @@
+@startuml show_hide_room_class_diagram
+
+' Show/Hide Room Feature - Class Diagram
+title Show/Hide Room - Class Diagram
+
+' DTOs
+class Room {
+  - id: Integer
+  - roomNumber: String
+  - name: String
+  - isVisible: Boolean
+  - status: String
+  - priceVnd: Integer
+  - capacity: Integer
+  - imageUrl: String
+  + getters and setters
+}
+
+' Controller Layer
+class RoomController {
+  - roomService: RoomService
+  - authHelper: AuthorizationHelper
+  + toggleVisibility(id: Long, body: Map<String, Boolean>): ResponseEntity<Room>
+}
+
+' Service Layer
+interface RoomService {
+  + toggleVisibility(id: Long, isVisible: Boolean): void
+}
+
+class RoomServiceImpl {
+  - roomRepository: RoomRepository
+  + toggleVisibility(id: Long, isVisible: Boolean): void
+}
+
+' Repository Layer
+interface RoomRepository {
+  + findById(id: Long): Optional<RoomEntity>
+  + save(room: RoomEntity): RoomEntity
+}
+
+' Entity
+class RoomEntity {
+  - id: Integer
+  - roomNumber: String
+  - roomName: String
+  - isVisible: Boolean
+  - status: String
+  - pricePerNight: Integer
+  - bedLayout: BedLayoutEntity
+  + getters and setters
+}
+
+' Relationships
+RoomController --> RoomService : uses
+RoomController --> Room : returns
+
+RoomService <|.. RoomServiceImpl : implements
+RoomServiceImpl --> RoomRepository : queries
+RoomServiceImpl --> RoomEntity : manipulates
+
+RoomRepository --> RoomEntity : manages
+
+' Notes
+note right of RoomEntity
+  isVisible field:
+  • BIT column in database
+  • Default value: 1 (true - visible)
+  • Controls room visibility in public search
+end note
+
+note bottom of RoomController
+  toggleVisibility endpoint:
+  • Request Body: {"isVisible": true/false}
+  • Endpoint: PATCH /api/rooms/{id}/visibility
+  • Requires: Admin authorization
+end note
+
+note left of RoomServiceImpl
+  toggleVisibility method:
+  • No business rule validation
+  • Simple field update operation
+  • Always allowed for admin
+end note
+
+@enduml
+

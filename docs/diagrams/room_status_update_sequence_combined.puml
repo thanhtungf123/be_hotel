@@ -1,0 +1,182 @@
+@startuml room_status_update_sequence_combined
+
+' Room Status Update - Combined Flow (All Scenarios)
+title Room Status Update - Complete Flow\n(Success, Failure, and Maintenance Scenarios)
+
+actor Admin
+participant "Frontend\n(RoomManagement)" as Frontend
+participant "RoomController" as Controller
+participant "AuthHelper" as Auth
+participant "RoomServiceImpl" as Service
+participant "RoomRepository" as RoomRepo
+participant "BookingRepository" as BookingRepo
+database "Database" as DB
+
+Admin -> Frontend: Selects room and\nchanges status via dropdown
+Frontend -> Frontend: Get X-Auth-Token from localStorage
+
+alt Status = "maintenance"
+    Frontend --> Admin: Prompt: "Lý do bảo trì (không bắt buộc):"
+    Admin --> Frontend: Enters reason (e.g., "Sửa chữa điều hòa")
+end
+
+Frontend -> Frontend: Confirm via window.confirm()
+
+Frontend -> Controller: PATCH /api/rooms/{id}/status\nBody: {"status": "...", "reason": "..."}
+activate Controller
+
+Controller -> Auth: requireAdmin(httpRequest)
+activate Auth
+
+alt Not Admin
+    Auth --> Controller: ❌ Forbidden
+    Controller --> Frontend: HTTP 403 Forbidden
+    Frontend --> Admin: ❌ "Không có quyền truy cập"
+else Admin Authorized
+    Auth --> Controller: ✅ Admin authorized
+    deactivate Auth
+    
+    Controller -> Service: updateRoomStatus(id, newStatus, reason)
+    activate Service
+    
+    Service -> Service: Validate status in\n["available", "occupied", "maintenance"]
+    
+    alt Invalid Status
+        Service --> Controller: ❌ IllegalArgumentException\n"Invalid status"
+        Controller --> Frontend: HTTP 400 Bad Request
+        Frontend --> Admin: ❌ "Trạng thái không hợp lệ"
+    else Valid Status
+        Service -> RoomRepo: findById(id)
+        activate RoomRepo
+        RoomRepo -> DB: SELECT * FROM rooms WHERE room_id = ?
+        activate DB
+        DB --> RoomRepo: RoomEntity
+        deactivate DB
+        RoomRepo --> Service: Optional[RoomEntity]
+        deactivate RoomRepo
+        
+        alt Room Not Found
+            Service --> Controller: ❌ Exception "Room not found"
+            Controller --> Frontend: HTTP 404 Not Found
+            Frontend --> Admin: ❌ "Không tìm thấy phòng"
+        else Room Found
+            Service -> Service: Check if currentStatus == newStatus
+            
+            alt Status Already Same
+                Service --> Controller: ✅ No-op (already correct status)
+                Controller --> Frontend: HTTP 200 OK (no changes)
+                Frontend --> Admin: ✅ "Trạng thái không thay đổi"
+            else Status Different
+                Service -> Service: validateStatusTransition(room, currentStatus, newStatus)
+                activate Service
+                
+                alt Transition: available → occupied
+                    note right of Service
+                      Rule: Must have ACTIVE BOOKING
+                    end note
+                    Service -> BookingRepo: existsByRoom_IdAndStatusInAndCheckOutAfter(...)
+                    activate BookingRepo
+                    BookingRepo -> DB: SELECT COUNT(*) FROM bookings\nWHERE room_id=? AND status IN (...) AND check_out > today
+                    activate DB
+                    DB --> BookingRepo: count
+                    deactivate DB
+                    BookingRepo --> Service: hasBooking
+                    deactivate BookingRepo
+                    
+                    alt No Active Booking
+                        Service --> Service: ❌ Throw IllegalArgumentException\n"Không thể chuyển sang 'occupied':\nPhòng chưa có booking"
+                        Service -->> Controller: ❌ Exception
+                        Controller --> Frontend: HTTP 400 Bad Request\n{"message": "..."}
+                        Frontend --> Admin: ❌ Show error message
+                    else Has Active Booking
+                        Service --> Service: ✅ Validation passed
+                    end
+                    
+                else Transition: occupied → available OR occupied → maintenance
+                    note right of Service
+                      Rule: Must NOT have ACTIVE BOOKING
+                    end note
+                    Service -> BookingRepo: existsByRoom_IdAndStatusInAndCheckOutAfter(...)
+                    activate BookingRepo
+                    BookingRepo -> DB: SELECT COUNT(*) FROM bookings\nWHERE room_id=? AND status IN (...) AND check_out > today
+                    activate DB
+                    DB --> BookingRepo: count
+                    deactivate DB
+                    BookingRepo --> Service: hasBooking
+                    deactivate BookingRepo
+                    
+                    alt Still Has Active Booking
+                        Service --> Service: ❌ Throw IllegalArgumentException\n"Không thể chuyển: Phòng đang có booking active"
+                        Service -->> Controller: ❌ Exception
+                        Controller --> Frontend: HTTP 400 Bad Request\n{"message": "..."}
+                        Frontend --> Admin: ❌ Show error message
+                        Frontend -> Frontend: Revert UI: dropdown returns to old value
+                    else No Active Booking
+                        Service --> Service: ✅ Validation passed
+                    end
+                    
+                else Transition: maintenance → occupied
+                    note right of Service
+                      Rule: Must have ACTIVE BOOKING
+                    end note
+                    Service -> BookingRepo: existsByRoom_IdAndStatusInAndCheckOutAfter(...)
+                    activate BookingRepo
+                    BookingRepo -> DB: SELECT COUNT(*)...
+                    DB --> BookingRepo: count
+                    BookingRepo --> Service: hasBooking
+                    deactivate BookingRepo
+                    
+                    alt No Active Booking
+                        Service --> Service: ❌ Throw IllegalArgumentException
+                        Service -->> Controller: ❌ Exception
+                        Controller --> Frontend: HTTP 400 Bad Request
+                        Frontend --> Admin: ❌ Show error message
+                    else Has Active Booking
+                        Service --> Service: ✅ Validation passed
+                    end
+                    
+                else Transition: available → maintenance OR maintenance → available
+                    note right of Service
+                      Rule: ALWAYS ALLOWED
+                    end note
+                    Service --> Service: ✅ Validation passed (no checks)
+                end
+                
+                deactivate Service
+                
+                alt Validation Passed
+                    Service -> Service: room.setStatus(newStatus)
+                    
+                    Service -> RoomRepo: save(room)
+                    activate RoomRepo
+                    RoomRepo -> DB: UPDATE rooms SET status=? WHERE room_id=?
+                    activate DB
+                    DB --> RoomRepo: (1 row affected)
+                    deactivate DB
+                    RoomRepo --> Service: Updated RoomEntity
+                    deactivate RoomRepo
+                    
+                    Service --> Controller: ✅ void (success)
+                    deactivate Service
+                    
+                    Controller -> Controller: Map RoomEntity → Room DTO
+                    
+                    Controller --> Frontend: HTTP 200 OK\nBody: {"id":..., "status":"...", ...}
+                    deactivate Controller
+                    
+                    Frontend -> Frontend: Update table row:\n• Status badge updated\n• Dropdown reflects new value
+                    
+                    Frontend --> Admin: ✅ Show alert:\n"Cập nhật trạng thái thành công!"
+                    
+                    note over DB
+                      If status = "maintenance":
+                      Room hidden from public search
+                    end note
+                end
+            end
+        end
+    end
+end
+
+@enduml
+

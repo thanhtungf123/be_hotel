@@ -1,0 +1,211 @@
+@startuml view_room_sequence
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam maxmessagesize 150
+
+actor User as U
+participant "Frontend\n(Search Page)" as FE
+participant "FilterSidebar" as FS
+participant "RoomController" as RC
+participant "RoomServiceImpl" as RS
+participant "RoomRepository" as RR
+database "Database" as DB
+
+title Sequence Diagram: View Room with Filters (QLKS-6)
+
+== Page Load ==
+U -> FE: Navigate to /search
+activate FE
+
+FE -> FS: Render FilterSidebar
+activate FS
+FS --> FE: Display filter options:\n- Price range slider\n- Type checkboxes\n- Amenity checkboxes\n- Status checkboxes
+deactivate FS
+
+== Initial Load (No Filters) ==
+FE -> RC: GET /api/rooms/search
+activate RC
+note right: Default: show all available rooms
+
+RC -> RC: Create RoomSearchCriteria\n(empty filters)
+
+RC -> RS: search(criteria)
+activate RS
+
+RS -> RS: Set defaults:\n- priceMin = 0\n- priceMax = 999999999\n- status = ['available']\n- sort = 'price:asc'
+
+RS -> RR: findForList(\n  ['available'],\n  null,\n  0, 999999999,\n  null,\n  PageRequest(0, 10, Sort.by('price').asc()))
+activate RR
+
+RR -> DB: SELECT rooms\nWHERE status='available'\n  AND is_visible=1\nORDER BY price ASC\nLIMIT 10
+activate DB
+DB --> RR: List<RoomEntity> (10 rooms)
+deactivate DB
+
+RR --> RS: Page<RoomEntity>\n(data + total count)
+deactivate RR
+
+RS -> RS: Filter by isVisible=true
+RS -> RS: Map to Room DTOs
+RS -> RS: Wrap in PagedResponse
+
+RS --> RC: PagedResponse<Room>
+deactivate RS
+
+RC --> FE: HTTP 200 OK + JSON
+deactivate RC
+
+FE -> FE: Display initial results
+FE --> U: Show 10 rooms\n+ "Tìm thấy X phòng"
+deactivate FE
+
+== User Applies Filters ==
+U -> FS: Select filters:
+activate FS
+note right
+  **User selections:**
+  • Types: [1 Giường Đôi Lớn, 2 Giường Đơn]
+  • Amenities: [WiFi, Pool]
+  • Price: 1M - 5M VND
+  • Status: [available]
+end note
+
+U -> FS: Click "Áp dụng" / Auto-apply
+FS -> FE: Update filter state
+deactivate FS
+
+activate FE
+FE -> FE: Build query params:\n?types=1%20Giường%20Đôi%20Lớn,2%20Giường%20Đơn\n&amenities=WiFi,Pool\n&priceMin=1000000\n&priceMax=5000000\n&status=available\n&sort=price:asc\n&page=1&pageSize=10
+
+== API Request with Filters ==
+FE -> RC: GET /api/rooms/search + query params
+activate RC
+
+RC -> RC: Parse comma-separated strings:\n- types → List<String>\n- amenities → List<String>\n- status → List<String>
+
+RC -> RC: Create RoomSearchCriteria with all filters
+
+RC -> RS: search(criteria)
+activate RS
+
+RS -> RS: Validate and set defaults
+RS -> RS: Parse sort: "price:asc"\n→ field="price", direction="asc"
+
+RS -> RR: findForList(\n  ['available'],\n  ['1 Giường Đôi Lớn', '2 Giường Đơn'],\n  1000000, 5000000,\n  'WiFi,Pool',\n  PageRequest(0, 10, Sort.by('price').asc()))
+activate RR
+
+RR -> DB: Execute JPQL query:
+activate DB
+note right of DB
+  **SQL Query:**
+  SELECT r.*
+  FROM rooms r
+  JOIN bed_layouts bl
+    ON r.bed_layout_id = bl.bed_layout_id
+  WHERE r.status IN ('available')
+    AND bl.layout_name IN (...)
+    AND r.price_per_night BETWEEN 1M AND 5M
+    AND r.amenities LIKE '%WiFi%'
+    AND r.amenities LIKE '%Pool%'
+    AND r.is_visible = 1
+  ORDER BY r.price_per_night ASC
+  OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY
+end note
+
+alt Rooms Found
+    DB --> RR: List<RoomEntity> (5 matching rooms)
+    deactivate DB
+    
+    RR --> RS: Page<RoomEntity>\n(data=5, total=5, page=1)
+    deactivate RR
+    
+    RS -> RS: Filter by isVisible=true
+    RS -> RS: Map each to Room DTO
+    RS -> RS: Wrap in PagedResponse:\n- data: List<Room> (5)\n- total: 5\n- page: 1\n- pageSize: 10\n- totalPages: 1
+    
+    RS --> RC: PagedResponse<Room>
+    deactivate RS
+    
+    RC --> FE: HTTP 200 OK + JSON
+    deactivate RC
+    
+    FE -> FE: Display filtered results
+    FE --> U: Show 5 matching rooms\n+ "Tìm thấy 5 phòng"
+    
+else No Rooms Found
+    DB --> RR: Empty List
+    RR --> RS: Page<RoomEntity> (empty)
+    RS --> RC: PagedResponse<Room> (empty)
+    RC --> FE: HTTP 200 OK + empty array
+    FE --> U: "Không tìm thấy phòng phù hợp.\nThử điều chỉnh bộ lọc."
+end
+
+== User Changes Sort ==
+U -> FE: Select "Giá: Cao → Thấp"\nfrom sort dropdown
+activate FE
+
+FE -> FE: Update sort param:\n"price:desc"
+
+FE -> RC: GET /api/rooms/search\n+ same filters\n+ sort=price:desc
+activate RC
+
+RC -> RS: search(criteria with sort="price:desc")
+activate RS
+
+RS -> RS: Parse sort:\nfield="price", direction="desc"
+
+RS -> RR: findForList(...,\n  PageRequest(0, 10, Sort.by('price').desc()))
+activate RR
+
+RR -> DB: Same query but\nORDER BY price DESC
+activate DB
+DB --> RR: List<RoomEntity>\n(reordered by price descending)
+deactivate DB
+
+RR --> RS: Page<RoomEntity>
+deactivate RR
+
+RS --> RC: PagedResponse<Room>\n(same rooms, different order)
+deactivate RS
+
+RC --> FE: HTTP 200 OK + JSON
+deactivate RC
+
+FE -> FE: Re-render room list\n(expensive rooms first)
+FE --> U: Updated room order
+deactivate FE
+
+== User Clears Filters ==
+U -> FS: Click "Xóa bộ lọc"
+activate FS
+
+FS -> FE: Reset all filters to default
+deactivate FS
+
+activate FE
+FE -> RC: GET /api/rooms/search\n(no query params)
+activate RC
+
+note right: Back to initial state:\nshow all available rooms
+
+RC -> RS: search(empty criteria)
+activate RS
+RS -> RR: findForList(['available'], ...)
+activate RR
+RR -> DB: SELECT all available rooms
+activate DB
+DB --> RR: All available rooms
+deactivate DB
+RR --> RS: Page<RoomEntity>
+deactivate RR
+RS --> RC: PagedResponse<Room>
+deactivate RS
+RC --> FE: HTTP 200 OK
+deactivate RC
+
+FE --> U: Show all rooms again
+deactivate FE
+
+@enduml
+

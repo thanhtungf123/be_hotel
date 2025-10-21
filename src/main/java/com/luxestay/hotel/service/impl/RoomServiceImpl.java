@@ -4,6 +4,7 @@ import com.luxestay.hotel.dto.PagedResponse;
 import com.luxestay.hotel.dto.RoomAvailabilityRequest;
 import com.luxestay.hotel.dto.RoomDetail;
 import com.luxestay.hotel.dto.RoomImageRequest;
+import com.luxestay.hotel.dto.RoomRecommendRequest;
 import com.luxestay.hotel.dto.RoomRequest;
 import com.luxestay.hotel.dto.RoomSearchCriteria;
 import com.luxestay.hotel.mapper.RoomMapper;
@@ -501,6 +502,131 @@ public class RoomServiceImpl implements RoomService {
             default:
                 throw new IllegalArgumentException("Trạng thái hiện tại không hợp lệ: " + currentStatus);
         }
+    }
+
+    @Override
+    public List<Room> recommendRooms(RoomRecommendRequest req) {
+        String type = req.getType() != null ? req.getType().toLowerCase() : "auto";
+        int limit = req.getLimit() != null && req.getLimit() > 0 ? req.getLimit() : 5;
+
+        List<RoomEntity> recommendedRooms = new ArrayList<>();
+
+        switch (type) {
+            case "popular":
+                recommendedRooms = getTopBookedRooms(limit);
+                break;
+            case "top_rated":
+                recommendedRooms = getTopRatedRooms(limit);
+                break;
+            case "personalized":
+                if (req.getAccountId() != null) {
+                    recommendedRooms = getPersonalizedRooms(req.getAccountId().intValue(), limit);
+                }
+                break;
+            case "auto":
+            default:
+                // Auto: Try personalized first, fallback to popular, then top rated, finally
+                // available
+                if (req.getAccountId() != null) {
+                    recommendedRooms = getPersonalizedRooms(req.getAccountId().intValue(), limit);
+                }
+                if (recommendedRooms.isEmpty()) {
+                    recommendedRooms = getTopBookedRooms(limit);
+                }
+                if (recommendedRooms.isEmpty()) {
+                    recommendedRooms = getTopRatedRooms(limit);
+                }
+                break;
+        }
+
+        // Fallback to available rooms if no recommendations found
+        if (recommendedRooms.isEmpty()) {
+            recommendedRooms = getAvailableRooms(limit);
+        }
+
+        // Filter only visible rooms and convert to DTO
+        return recommendedRooms.stream()
+                .filter(r -> Boolean.TRUE.equals(r.getIsVisible()))
+                .limit(limit)
+                .map(RoomMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    private List<RoomEntity> getTopBookedRooms(int limit) {
+        try {
+            List<Object[]> stats = bookingRepository.countBookingsByRoom();
+            if (stats.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            // Extract room IDs sorted by booking count
+            List<Integer> topRoomIds = stats.stream()
+                    .limit(limit * 2) // Get more than needed in case some are hidden
+                    .map(row -> (Integer) row[0])
+                    .collect(Collectors.toList());
+
+            if (topRoomIds.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            // Fetch rooms by IDs
+            return roomRepository.findAllById(topRoomIds).stream()
+                    .filter(r -> "available".equals(r.getStatus()))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("Error getting top booked rooms: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    private List<RoomEntity> getTopRatedRooms(int limit) {
+        // For now, return empty - will implement when ReviewRepository is properly
+        // integrated
+        // This requires joining reviews with bookings and rooms
+        return new ArrayList<>();
+    }
+
+    private List<RoomEntity> getPersonalizedRooms(Integer accountId, int limit) {
+        try {
+            // Find user's preferred room types (bed layouts) based on booking history
+            List<Object[]> preferences = bookingRepository.findUserPreferredRoomTypes(accountId);
+            if (preferences.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            // Get the most preferred bed layout ID
+            Integer preferredLayoutId = (Integer) preferences.get(0)[0];
+
+            // Find available rooms with that bed layout
+            Page<RoomEntity> rooms = roomRepository.findForList(
+                    List.of("available"),
+                    null, // layoutNames (we'll filter by ID below)
+                    null, // minPrice
+                    null, // maxPrice
+                    null, // q
+                    PageRequest.of(0, limit * 2, Sort.by("pricePerNight").ascending()));
+
+            return rooms.getContent().stream()
+                    .filter(r -> r.getBedLayout() != null && r.getBedLayout().getId().equals(preferredLayoutId))
+                    .limit(limit)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("Error getting personalized rooms: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    private List<RoomEntity> getAvailableRooms(int limit) {
+        // Fallback: Return available rooms sorted by price
+        Page<RoomEntity> page = roomRepository.findForList(
+                List.of("available"),
+                null, // layoutNames
+                null, // minPrice
+                null, // maxPrice
+                null, // q
+                PageRequest.of(0, limit, Sort.by("pricePerNight").ascending()));
+
+        return page.getContent();
     }
 
     private boolean hasActiveBooking(Integer roomId) {

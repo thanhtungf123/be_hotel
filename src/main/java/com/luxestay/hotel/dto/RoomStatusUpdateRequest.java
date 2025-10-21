@@ -8,3 +8,4 @@ public class RoomStatusUpdateRequest {
     private String reason; // Optional: lý do thay đổi (cho maintenance)
 }
 
+

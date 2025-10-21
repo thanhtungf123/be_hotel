@@ -3,6 +3,7 @@ package com.luxestay.hotel.service;
 import com.luxestay.hotel.dto.PagedResponse;
 import com.luxestay.hotel.dto.RoomAvailabilityRequest;
 import com.luxestay.hotel.dto.RoomDetail;
+import com.luxestay.hotel.dto.RoomRecommendRequest;
 import com.luxestay.hotel.dto.RoomRequest;
 import com.luxestay.hotel.dto.RoomSearchCriteria;
 import com.luxestay.hotel.model.Room;
@@ -32,6 +33,9 @@ public interface RoomService {
 
     void updateRoomStatus(Long id, String newStatus, String reason); // Update room status with state machine validation
                                                                      // (admin only)
+
+    // Recommendation
+    List<Room> recommendRooms(RoomRecommendRequest req); // Gợi ý phòng dựa trên thuật toán
 
     // Image management
     List<String> addImages(Long roomId, List<RoomImageRequest> images); // thêm/đặt ảnh
