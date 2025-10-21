@@ -1,0 +1,125 @@
+@startuml room_management_class_diagram
+
+' Room Management (CRUD) - Class Diagram
+title Room Management (Admin) - Class Diagram
+
+' DTOs
+class RoomRequest {
+  - roomNumber: String
+  - roomName: String
+  - pricePerNight: Integer
+  - description: String
+  - amenities: String[]
+  - status: String
+  - capacity: Integer
+  - imageUrl: String
+  - bedLayoutId: Long
+  - images: String[]
+  + getters and setters
+}
+
+class Room {
+  - id: Integer
+  - roomNumber: String
+  - name: String
+  - priceVnd: Integer
+  - status: String
+  - capacity: Integer
+  - isVisible: Boolean
+  - imageUrl: String
+  - type: String
+  - amenities: String[]
+  + getters and setters
+}
+
+' Controller Layer
+class RoomController {
+  - roomService: RoomService
+  - authHelper: AuthorizationHelper
+  + createRoom(request: RoomRequest): ResponseEntity<Room>
+  + updateRoom(id: Long, request: RoomRequest): ResponseEntity<Room>
+  + deleteRoom(id: Long): ResponseEntity<Void>
+}
+
+' Service Layer
+interface RoomService {
+  + createRoom(request: RoomRequest): Room
+  + updateRoom(id: Long, request: RoomRequest): Room
+  + deleteRoom(id: Long): void
+}
+
+class RoomServiceImpl {
+  - roomRepository: RoomRepository
+  - bedLayoutRepository: BedLayoutRepository
+  + createRoom(request: RoomRequest): Room
+  + updateRoom(id: Long, request: RoomRequest): Room
+  + deleteRoom(id: Long): void
+}
+
+' Repository Layer
+interface RoomRepository {
+  + save(room: RoomEntity): RoomEntity
+  + findById(id: Long): Optional<RoomEntity>
+  + deleteById(id: Long): void
+  + existsByRoomNumber(roomNumber: String): boolean
+}
+
+interface BedLayoutRepository {
+  + findById(id: Long): Optional<BedLayoutEntity>
+}
+
+' Entity
+class RoomEntity {
+  - id: Integer
+  - roomNumber: String
+  - roomName: String
+  - pricePerNight: Integer
+  - description: String
+  - amenities: String
+  - status: String
+  - capacity: Integer
+  - imageUrl: String
+  - bedLayoutId: Long
+  - isVisible: Boolean
+  + getters and setters
+}
+
+' Relationships
+RoomController --> RoomService : uses
+RoomController --> RoomRequest : receives
+RoomController --> Room : returns
+
+RoomService <|.. RoomServiceImpl : implements
+RoomServiceImpl --> RoomRepository : queries
+RoomServiceImpl --> BedLayoutRepository : validates
+RoomServiceImpl --> RoomEntity : manipulates
+
+RoomRepository --> RoomEntity : manages
+
+' Notes
+note right of RoomRequest
+  Validation rules:
+  • roomNumber: unique, required
+  • pricePerNight: > 0
+  • capacity: > 0
+  • bedLayoutId: must exist
+end note
+
+note bottom of RoomController
+  CRUD Endpoints:
+  • POST /api/rooms (create)
+  • PUT /api/rooms/{id} (update)
+  • DELETE /api/rooms/{id} (delete)
+  All require: Admin authorization
+end note
+
+note left of RoomServiceImpl
+  Business logic:
+  • Validate uniqueness
+  • Check bed layout exists
+  • Set default values
+  • Map entity ↔ DTO
+end note
+
+@enduml
+
