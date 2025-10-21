@@ -7,6 +7,7 @@ import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.model.entity.RoomEntity;
 import com.luxestay.hotel.repository.*;
 import com.luxestay.hotel.service.BookingService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -142,5 +143,30 @@ public class BookingServiceImpl implements BookingService {
         }).toList();
 
         return new PagedResponse<>(items, (int)pg.getTotalElements(), pg.getNumber(), pg.getSize());
+    }
+    @Transactional
+    @Override
+    public void confirmBookingPayment(int bookingId) {
+
+        BookingEntity booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
+
+        if ("pending".equalsIgnoreCase(booking.getStatus())) {
+
+            // 1. Cập nhật booking
+            booking.setStatus("confirmed");
+            bookingRepository.save(booking);
+
+            // 2. Cập nhật phòng
+            RoomEntity room = booking.getRoom();
+            if (room != null) {
+                room.setStatus("occupied");
+                roomRepository.save(room);
+            } else {
+                throw new IllegalStateException("Booking " + bookingId + " has no room associated.");
+            }
+        } else {
+            System.out.println("Booking " + bookingId + " status is already confirmed.");
+        }
     }
 }
