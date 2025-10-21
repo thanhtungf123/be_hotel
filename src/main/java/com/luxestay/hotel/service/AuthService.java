@@ -31,7 +31,7 @@ public class AuthService {
             throw new IllegalArgumentException("Email đã tồn tại");
         }
 
-        Role customerRole = roleRepository.findByName("account")
+        Role customerRole = roleRepository.findByName("customer")
                 .orElseThrow(() -> new IllegalStateException("Không tìm thấy role 'account'"));
 
         Account acc = Account.builder()

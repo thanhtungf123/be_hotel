@@ -1,0 +1,58 @@
+@startuml Popular Rooms Sequence Diagram
+
+' Styling
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+skinparam maxmessagesize 150
+skinparam sequenceParticipant underline
+
+' Actors and Participants
+actor "Admin/User" as User
+participant "Frontend" as Frontend
+participant "RoomController" as Controller
+participant "RoomServiceImpl" as Service
+participant "BookingRepository" as BookingRepo
+participant "RoomRepository" as RoomRepo
+
+' Sequence Flow
+User -> Frontend: 1. Request Popular Rooms
+activate Frontend
+
+Frontend -> Controller: 2. GET /api/rooms/recommend\n?type=popular&limit=3
+activate Controller
+
+Controller -> Service: 3. recommendRooms(request)
+activate Service
+
+Service -> BookingRepo: 4. countBookingsByRoom()
+activate BookingRepo
+BookingRepo --> Service: 5. List<[roomId, bookingCount]>
+deactivate BookingRepo
+
+note right of Service
+    Result sorted by
+    booking count DESC
+end note
+
+Service -> Service: 6. Extract roomIds\n(sorted by count DESC)
+
+Service -> RoomRepo: 7. findAllById(topRoomIds)
+activate RoomRepo
+RoomRepo --> Service: 8. List<RoomEntity>
+deactivate RoomRepo
+
+Service -> Service: 9. Filter by status='available'\n& isVisible=true
+Service -> Service: 10. Limit to 3 rooms
+Service -> Service: 11. Map to Room DTOs
+
+Service --> Controller: 12. List<Room>\n(top 3 most booked)
+deactivate Service
+
+Controller --> Frontend: 13. JSON Response (200 OK)
+deactivate Controller
+
+Frontend --> User: 14. Display Popular Rooms
+deactivate Frontend
+
+@enduml
+

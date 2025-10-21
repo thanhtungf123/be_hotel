@@ -1,0 +1,126 @@
+@startuml show_hide_room_sequence
+
+' Show/Hide Room - Complete Flow
+title Show/Hide Room - Complete Flow\n(Toggle Visibility with Success and Error Handling)
+
+actor Admin
+participant "Frontend\n(RoomManagement)" as Frontend
+participant "RoomController" as Controller
+participant "AuthHelper" as Auth
+participant "RoomServiceImpl" as Service
+participant "RoomRepository" as RoomRepo
+database "Database" as DB
+
+Admin -> Frontend: Views room management table
+Frontend -> Frontend: Display rooms with visibility toggle buttons
+
+Admin -> Frontend: Clicks visibility toggle button\nfor room (current: Hiển thị or Ẩn)
+activate Frontend
+
+Frontend -> Frontend: Detect current state:\nisVisible = true → will hide (false)\nisVisible = false → will show (true)
+
+Frontend -> Frontend: Confirm via window.confirm()\n"Bạn có chắc muốn ẩn/hiển thị phòng này?"
+
+alt User Cancels
+    Frontend --> Admin: ❌ Action cancelled (no changes)
+else User Confirms
+    Frontend -> Frontend: Get X-Auth-Token from localStorage
+    
+    Frontend -> Controller: PATCH /api/rooms/{id}/visibility\nBody: {"isVisible": true/false}
+    activate Controller
+    
+    Controller -> Auth: requireAdmin(httpRequest)
+    activate Auth
+    
+    alt Not Admin
+        Auth --> Controller: ❌ Forbidden
+        deactivate Auth
+        Controller --> Frontend: HTTP 403 Forbidden
+        deactivate Controller
+        Frontend --> Admin: ❌ Show alert:\n"Không có quyền truy cập"
+    else Admin Authorized
+        Auth --> Controller: ✅ Admin authorized
+        deactivate Auth
+        
+        Controller -> Controller: Extract id (Long)\nand isVisible (Boolean) from request
+        
+        Controller -> Service: toggleVisibility(id, isVisible)
+        activate Service
+        
+        Service -> RoomRepo: findById(id)
+        activate RoomRepo
+        RoomRepo -> DB: SELECT * FROM rooms\nWHERE room_id = ?
+        activate DB
+        
+        alt Room Not Found
+            DB --> RoomRepo: No result
+            deactivate DB
+            RoomRepo --> Service: Optional.empty()
+            deactivate RoomRepo
+            Service --> Controller: ❌ Exception "Room not found"
+            deactivate Service
+            Controller --> Frontend: HTTP 404 Not Found
+            deactivate Controller
+            Frontend --> Admin: ❌ Show alert:\n"Không tìm thấy phòng"
+        else Room Found
+            DB --> RoomRepo: RoomEntity
+            deactivate DB
+            RoomRepo --> Service: Optional[RoomEntity]
+            deactivate RoomRepo
+            
+            Service -> Service: room.setIsVisible(newValue)
+            note right of Service
+              No business rule validation
+              Simple field update
+            end note
+            
+            Service -> RoomRepo: save(room)
+            activate RoomRepo
+            RoomRepo -> DB: UPDATE rooms\nSET is_visible = ?\nWHERE room_id = ?
+            activate DB
+            DB --> RoomRepo: (1 row affected)
+            deactivate DB
+            RoomRepo --> Service: Updated RoomEntity
+            deactivate RoomRepo
+            
+            Service --> Controller: ✅ void (success)
+            deactivate Service
+            
+            Controller -> Controller: Map RoomEntity → Room DTO
+            
+            Controller --> Frontend: HTTP 200 OK\nBody: {"id":..., "isVisible":..., ...}
+            deactivate Controller
+            
+            Frontend -> Frontend: Update UI
+            
+            alt isVisible = false (Hidden)
+                Frontend -> Frontend: Update toggle button:\n• Label: "Hiển thị"\n• Badge: "Ẩn" (secondary/gray)
+                
+                note over DB
+                  Room now HIDDEN from:
+                  • Public search (/api/rooms/search)
+                  • Availability checks (/api/rooms/availability)
+                  
+                  Room still VISIBLE in:
+                  • Admin table (/api/rooms/admin/all)
+                end note
+            else isVisible = true (Visible)
+                Frontend -> Frontend: Update toggle button:\n• Label: "Ẩn"\n• Badge: "Hiển thị" (success/green)
+                
+                note over DB
+                  Room now VISIBLE in:
+                  • Public search (if status='available')
+                  • Availability checks
+                  • Admin table
+                end note
+            end
+            
+            Frontend --> Admin: ✅ Show alert:\n"Cập nhật hiển thị thành công!"
+        end
+    end
+end
+
+deactivate Frontend
+
+@enduml
+

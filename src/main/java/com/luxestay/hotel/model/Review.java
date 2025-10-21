@@ -1,6 +1,15 @@
 package com.luxestay.hotel.model;
 
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "review")
 public class Review {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
+
     private String author;
     private String avatar;   // url
     private int stars;       // 1..5
