@@ -17,6 +17,10 @@ public class BookingSummary {
     private BigDecimal totalPrice;
     private String status;
     private String cancelReason;
+    private String paymentState;           // unpaid|deposit_paid|paid_in_full
+    private BigDecimal depositAmount;      // số tiền cọc
+    private BigDecimal amountPaid;         // đã thanh toán
+    private BigDecimal amountRemaining;    // số tiền còn lại
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -53,4 +57,16 @@ public class BookingSummary {
 
     public String getCancelReason() { return cancelReason; }
     public void setCancelReason(String cancelReason) { this.cancelReason = cancelReason; }
+    
+    public String getPaymentState() { return paymentState; }
+    public void setPaymentState(String paymentState) { this.paymentState = paymentState; }
+
+    public BigDecimal getDepositAmount() { return depositAmount; }
+    public void setDepositAmount(BigDecimal depositAmount) { this.depositAmount = depositAmount; }
+
+    public BigDecimal getAmountPaid() { return amountPaid; }
+    public void setAmountPaid(BigDecimal amountPaid) { this.amountPaid = amountPaid; }
+    
+    public BigDecimal getAmountRemaining() { return amountRemaining; }
+    public void setAmountRemaining(BigDecimal amountRemaining) { this.amountRemaining = amountRemaining; }
 }

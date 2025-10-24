@@ -55,13 +55,16 @@ public interface RoomRepository extends JpaRepository<RoomEntity, Integer>, JpaS
                        AND (:maxPrice IS NULL OR r.pricePerNight <= :maxPrice)
                        AND (:minCapacity IS NULL OR r.capacity >= :minCapacity)
                        AND NOT EXISTS (
-                           SELECT b
-                           FROM BookingEntity b
-                           WHERE b.room.id = r.id
-                             AND b.status IN ('pending', 'confirmed', 'checked_in')
-                             AND :checkIn < b.checkOut
-                             AND :checkOut > b.checkIn
-                       )
+                        SELECT b
+                        FROM BookingEntity b
+                        WHERE b.room.id = r.id
+                              AND (
+                              b.status IN ('pending','confirmed','checked_in')
+                              OR b.paymentState IN ('deposit_paid','paid_in_full')
+                              )
+                              AND :checkIn < b.checkOut
+                              AND :checkOut > b.checkIn
+                        )
                   """)
       Page<RoomEntity> findAvailableRooms(
                   @Param("checkIn") LocalDate checkIn,

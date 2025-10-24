@@ -34,6 +34,12 @@ public class BookingEntity {
     @Column(name = "total_price")
     private BigDecimal totalPrice;
 
+    @Column(name = "deposit_amount")
+    private BigDecimal depositAmount;
+
+    @Column(name = "payment_state")
+    private String paymentState;
+
     @Column(name = "status")
     private String status;
 
@@ -52,6 +58,18 @@ public class BookingEntity {
     @Column(name = "cancel_approved_at")
     private LocalDateTime cancelApprovedAt;
 
+    @OneToOne(mappedBy = "booking", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private BookingCustomerDetails customerDetails;
+
+    @Column(name = "payment_reviewed_at")
+    private LocalDateTime paymentReviewedAt;
+    
+    @Column(name = "payment_reviewed_by")
+    private Integer paymentReviewedBy;
+    
+    @Column(name = "payment_note", columnDefinition = "NVARCHAR(MAX)")
+    private String paymentNote;
+
     // getters/setters
     public Integer getId() { return id; }
     public Account getAccount() { return account; }
@@ -65,6 +83,12 @@ public class BookingEntity {
     public LocalDateTime getCancelRequestedAt() { return cancelRequestedAt; }
     public Integer getCancelApprovedBy() { return cancelApprovedBy; }
     public LocalDateTime getCancelApprovedAt() { return cancelApprovedAt; }
+    public BookingCustomerDetails getCustomerDetails() { return customerDetails; }
+    public BigDecimal getDepositAmount() { return depositAmount; }
+    public String getPaymentState() { return paymentState; }
+    public LocalDateTime getPaymentReviewedAt() { return paymentReviewedAt; }
+    public Integer getPaymentReviewedBy() { return paymentReviewedBy; }
+    public String getPaymentNote() { return paymentNote; }
 
     public void setId(Integer id) { this.id = id; }
     public void setAccount(Account account) { this.account = account; }
@@ -78,4 +102,10 @@ public class BookingEntity {
     public void setCancelRequestedAt(LocalDateTime t) { this.cancelRequestedAt = t; }
     public void setCancelApprovedBy(Integer id) { this.cancelApprovedBy = id; }
     public void setCancelApprovedAt(LocalDateTime t) { this.cancelApprovedAt = t; }
+    public void setCustomerDetails(BookingCustomerDetails customerDetails) { this.customerDetails = customerDetails; }
+    public void setDepositAmount(BigDecimal depositAmount) { this.depositAmount = depositAmount; }
+    public void setPaymentState(String paymentState) { this.paymentState = paymentState; }
+    public void setPaymentReviewedAt(LocalDateTime t) { this.paymentReviewedAt = t; }
+    public void setPaymentReviewedBy(Integer id) { this.paymentReviewedBy = id; }
+    public void setPaymentNote(String s) { this.paymentNote = s; }
 }

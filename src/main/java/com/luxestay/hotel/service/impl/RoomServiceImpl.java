@@ -317,8 +317,8 @@ public class RoomServiceImpl implements RoomService {
     public void deleteRoom(Long id) {
         RoomEntity entity = roomRepository.findById(id.intValue())
                 .orElseThrow(() -> new IllegalArgumentException("Room not found"));
-        // Soft delete
-        entity.setStatus("deleted");
+        // Soft delete: ẩn khỏi search
+        entity.setIsVisible(false);
         roomRepository.save(entity);
     }
 

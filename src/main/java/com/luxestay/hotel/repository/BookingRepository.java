@@ -12,13 +12,23 @@ import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<BookingEntity, Integer> {
 
+// === Duyệt thanh toán: booking đã có giao dịch (cọc/full), còn pending/confirmed, CHƯA review
+        @Query("""
+                select b from BookingEntity b
+                where b.paymentState in ('deposit_paid','paid_in_full')
+                and b.status in ('pending','confirmed')
+                and b.paymentReviewedAt is null
+                order by b.createdAt desc
+        """)
+    Page<BookingEntity> findPendingPaymentReviews(Pageable pageable);
+
     Optional<BookingEntity> findByIdAndAccount_Id(Integer id, Integer accountId);
 
     @Query("""
-            SELECT b FROM BookingEntity b
-            WHERE (:accountId IS NULL OR b.account.id = :accountId)
-              AND (:status IS NULL OR LOWER(b.status) = LOWER(:status))
-            """)
+        select b from BookingEntity b
+        where (:accountId is null or b.account.id = :accountId)
+          and (:status is null or lower(b.status) = lower(:status))
+    """)
     Page<BookingEntity> findForHistory(@Param("accountId") Integer accountId,
                                        @Param("status") String status,
                                        Pageable pageable);

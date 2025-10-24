@@ -74,6 +74,7 @@ public class PaymentController {
 
                     // 2) Confirm booking status and room state
                     bookingService.confirmBookingPayment((int) orderCode);
+                    bookingService.onPaymentCaptured((int) orderCode);
                     System.out.println("Successfully processed payment confirmation for ID: " + orderCode);
 
                 } catch (Exception e) {
