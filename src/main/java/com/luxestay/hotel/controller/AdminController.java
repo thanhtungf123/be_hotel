@@ -4,6 +4,7 @@ package com.luxestay.hotel.controller;
 import com.luxestay.hotel.dto.employee.EmployeeRequest;
 import com.luxestay.hotel.dto.employee.EmployeeResponse;
 import com.luxestay.hotel.model.Employee;
+import com.luxestay.hotel.model.Services;
 import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.repository.AccountRepository;
 import com.luxestay.hotel.repository.EmployeeRepository;
@@ -14,8 +15,10 @@ import com.luxestay.hotel.service.AuthService;
 import com.luxestay.hotel.model.Account;
 import com.luxestay.hotel.model.Role;
 import com.luxestay.hotel.service.EmployeeService;
+import com.luxestay.hotel.service.ServicesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -37,10 +40,12 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class AdminController {
 
-
+    @Autowired
     private final AccountService accountService;
+    @Autowired
     private final EmployeeService employeeService;
-
+    @Autowired
+    private final ServicesService servicesService;
     private final PasswordEncoder passwordEncoder;
     /**
      * Guard admin theo X-Auth-Token
@@ -184,4 +189,20 @@ public class AdminController {
     public List<BookingEntity> getAccountHistory(@PathVariable("id") Integer id) {
         return employeeService.getHistory(id);
     }
+
+    //========================================CRUD_SERVICE======================================
+
+    @GetMapping("/services")
+    public List<Services> getServices() {
+        return servicesService.getAll();
+    }
+
+    @PostMapping("/service/create")
+//    @ResponseStatus(HttpStatus.CREATED)
+    public void create(@RequestBody Services body) {
+        servicesService.addService(body);
+    }
+
+
+
 }
