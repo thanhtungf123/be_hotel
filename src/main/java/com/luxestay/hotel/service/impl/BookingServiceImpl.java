@@ -3,32 +3,29 @@ package com.luxestay.hotel.service.impl;
 import com.luxestay.hotel.dto.PagedResponse;
 import com.luxestay.hotel.dto.booking.*;
 import com.luxestay.hotel.model.Account;
+import com.luxestay.hotel.model.entity.BookingCustomerDetails;
 import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.model.entity.RoomEntity;
 import com.luxestay.hotel.repository.*;
 import com.luxestay.hotel.service.BookingService;
-
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.RoundingMode;
-
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-import com.luxestay.hotel.model.entity.BookingCustomerDetails;
-
 @Service
 @RequiredArgsConstructor
 public class BookingServiceImpl implements BookingService {
-    
+
     private static final int DEFAULT_DEPOSIT_PERCENT = 30;
+    private static final int CANCEL_FREE_HOURS = 24;
 
     private final BookingRepository bookingRepository;
     private final RoomRepository roomRepository;
@@ -36,15 +33,13 @@ public class BookingServiceImpl implements BookingService {
     private final PaymentRepository paymentRepository;
     private final BookingCustomerDetailsRepository bookingCustomerDetailsRepository;
 
-    private static final int CANCEL_FREE_HOURS = 24; // bạn tùy chỉnh
-    private static final int DEPOSIT_PERCENT = 30;
-
     @Override
     @Transactional
     public BookingResponse create(Integer accountId, BookingRequest req) {
         if (req.getRoomId() == null) throw new IllegalArgumentException("Thiếu roomId");
         if (req.getCheckIn() == null || req.getCheckOut() == null)
             throw new IllegalArgumentException("Thiếu ngày nhận/trả");
+
         LocalDate in  = LocalDate.parse(req.getCheckIn());
         LocalDate out = LocalDate.parse(req.getCheckOut());
         if (!out.isAfter(in)) throw new IllegalArgumentException("Ngày trả phải sau ngày nhận");
@@ -53,6 +48,15 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng"));
         Account acc = accountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản"));
+
+        // ✅ Chỉ block khi có cọc / confirmed:
+        // -> Tại thời điểm tạo, nếu đã tồn tại booking khác (cùng phòng, overlap)
+        //    với status ∈ {confirmed, checked_in} hoặc paymentState ∈ {deposit_paid, paid_in_full}
+        //    thì từ chối tạo.
+        boolean conflict = bookingRepository.hasActiveConflict(room.getId(), in, out);
+        if (conflict) {
+            throw new IllegalStateException("Phòng đã được giữ bởi booking khác (đã cọc/đã xác nhận)");
+        }
 
         long nights = Math.max(1, ChronoUnit.DAYS.between(in, out));
         int price = room.getPricePerNight() == null ? 0 : room.getPricePerNight();
@@ -115,7 +119,7 @@ public class BookingServiceImpl implements BookingService {
         }
         b.setPaymentState(state);
 
-        // Sau khi có cọc/full -> confirmed để block qua quy trình duyệt
+        // Sau khi có cọc/full -> chuyển confirmed
         if (!"confirmed".equalsIgnoreCase(b.getStatus())
                 && ("deposit_paid".equals(state) || "paid_in_full".equals(state))) {
             b.setStatus("confirmed");
@@ -129,19 +133,19 @@ public class BookingServiceImpl implements BookingService {
         BookingEntity b = bookingRepository.findByIdAndAccount_Id(bookingId, accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
 
-        String st = (b.getStatus()==null?"pending":b.getStatus()).toLowerCase();
-        if (st.equals("cancellation_requested"))
+        String st = (b.getStatus()==null ? "pending" : b.getStatus()).toLowerCase();
+        if (st.equals("cancellation_requested") || st.equals("cancel_requested"))
             throw new IllegalStateException("Bạn đã gửi yêu cầu hủy, vui lòng chờ duyệt");
         if (st.equals("cancelled"))
             throw new IllegalStateException("Đơn đã hủy");
         if (st.equals("checked_in") || st.equals("checked_out"))
             throw new IllegalStateException("Không thể hủy khi đã nhận/trả phòng");
 
-        // kiểm tra hạn chót hủy miễn phí (không block, chỉ tham khảo; muốn block -> throw)
+        // ✅ Chặn hủy khi đã quá hạn 24h trước 00:00 ngày check-in
         if (b.getCheckIn() != null) {
             LocalDateTime deadline = b.getCheckIn().atStartOfDay().minusHours(CANCEL_FREE_HOURS);
             if (LocalDateTime.now().isAfter(deadline)) {
-                // có thể ghi thêm note “Trễ hạn”
+                throw new IllegalStateException("Đã quá hạn hủy miễn phí 24h trước check-in");
             }
         }
 
@@ -169,7 +173,7 @@ public class BookingServiceImpl implements BookingService {
                 b.setCancelReason(append(b.getCancelReason(), "Staff note: " + note));
             }
         } else {
-            // từ chối: quay về confirmed (hoặc pending tùy nghiệp vụ)
+            // từ chối: quay về confirmed
             b.setStatus("confirmed");
             if (note != null && !note.isBlank()) {
                 b.setCancelReason(append(b.getCancelReason(), "Reject: " + note));
@@ -201,12 +205,12 @@ public class BookingServiceImpl implements BookingService {
             dto.setCheckOut(b.getCheckOut());
             dto.setTotalPrice(b.getTotalPrice());
             dto.setStatus(b.getStatus());
-//            dto.setCreatedAt(b.getCreatedAt());
             return dto;
         }).toList();
 
         return new PagedResponse<>(items, (int)pg.getTotalElements(), pg.getNumber(), pg.getSize());
     }
+
     @Override
     @Transactional
     public void confirmBookingPayment(int bookingId) {
@@ -218,7 +222,8 @@ public class BookingServiceImpl implements BookingService {
         }
         var room = booking.getRoom();
         if (room != null) {
-            room.setStatus("reserved"); // block ngày sau khi đã có tiền
+            // giữ nguyên behaviour: phòng sẽ không xuất hiện trong search vì status != 'available'
+            room.setStatus("reserved");
             roomRepository.save(room);
         }
     }

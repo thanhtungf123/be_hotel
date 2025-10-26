@@ -41,5 +41,19 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
             List<String> statuses,
             LocalDate date);
 
+     @Query("""
+        SELECT COUNT(b) > 0
+        FROM BookingEntity b
+        WHERE b.room.id = :roomId
+                AND (
+                LOWER(b.status) IN ('confirmed','checked_in')
+                OR b.paymentState IN ('deposit_paid','paid_in_full')
+                )
+                AND :checkIn < b.checkOut
+                AND :checkOut > b.checkIn
+        """)
+        boolean hasActiveConflict(@Param("roomId") Integer roomId,
+                                @Param("checkIn") LocalDate checkIn,
+                                @Param("checkOut") LocalDate checkOut);
     Optional<BookingEntity> findAllByAccount_Id(Integer accountId);
 }
