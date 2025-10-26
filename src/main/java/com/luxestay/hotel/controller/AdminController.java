@@ -203,6 +203,19 @@ public class AdminController {
         servicesService.addService(body);
     }
 
+    @PutMapping("services/{id}")
+    public void updateService(@PathVariable("id") Integer id, @RequestBody Services patch) {
+        servicesService.editService(id, patch);
+    }
+
+    @DeleteMapping("services/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteService(@PathVariable("id") Integer id) {
+        servicesService.deleteService(id);
+    }
+
+    
+
 
 
 }
