@@ -4,6 +4,7 @@ import com.luxestay.hotel.dto.PagedResponse;
 import com.luxestay.hotel.dto.RoomAvailabilityRequest;
 import com.luxestay.hotel.dto.RoomDetail;
 import com.luxestay.hotel.dto.RoomImageRequest;
+import com.luxestay.hotel.dto.RoomRecommendRequest;
 import com.luxestay.hotel.dto.RoomRequest;
 import com.luxestay.hotel.dto.RoomSearchCriteria;
 import com.luxestay.hotel.dto.RoomStatusUpdateRequest;
@@ -104,6 +105,16 @@ public class RoomController {
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
         }
+    }
+
+    @GetMapping("/recommend")
+    public List<Room> getRecommendedRooms(
+            @RequestParam(name = "accountId", required = false) Long accountId,
+            @RequestParam(name = "type", required = false, defaultValue = "auto") String type,
+            @RequestParam(name = "limit", required = false, defaultValue = "5") Integer limit) {
+
+        RoomRecommendRequest req = new RoomRecommendRequest(accountId, type, limit);
+        return roomService.recommendRooms(req);
     }
 
     @GetMapping("/{id}")
