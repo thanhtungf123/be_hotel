@@ -4,6 +4,7 @@ import com.luxestay.hotel.dto.PagedResponse;
 import com.luxestay.hotel.dto.booking.BookingSummary;
 import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.repository.BookingRepository;
+import com.luxestay.hotel.repository.PaymentRepository;
 import com.luxestay.hotel.service.BookingQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -19,11 +20,11 @@ import java.util.List;
 public class BookingQueryServiceImpl implements BookingQueryService {
 
     private final BookingRepository bookingRepository;
+    private final PaymentRepository paymentRepository;
 
     @Override
     @Transactional(readOnly = true)
     public PagedResponse<BookingSummary> listMine(Integer accountId, String status, Pageable pageable) {
-        // dùng lại query đã có
         Page<BookingEntity> page = bookingRepository.findForHistory(accountId, status, pageable);
 
         List<BookingSummary> items = page.getContent().stream().map(b -> {
@@ -36,7 +37,6 @@ public class BookingQueryServiceImpl implements BookingQueryService {
                 s.setBedLayout(b.getRoom().getBedLayout() != null ? b.getRoom().getBedLayout().getLayoutName() : null);
                 s.setGuests(b.getRoom().getCapacity());
                 s.setCancelReason(b.getCancelReason());
-
             }
             s.setCheckIn(b.getCheckIn());
             s.setCheckOut(b.getCheckOut());
@@ -47,9 +47,41 @@ public class BookingQueryServiceImpl implements BookingQueryService {
             s.setNights(nights);
             s.setTotalPrice(b.getTotalPrice());
             s.setStatus(b.getStatus());
+
+            // NEW: payment summary
+            s.setPaymentState(b.getPaymentState());
+            s.setDepositAmount(b.getDepositAmount());
+            var paid = paymentRepository.sumPaidByBooking(b.getId());
+            if (paid == null) paid = java.math.BigDecimal.ZERO;
+            s.setAmountPaid(paid);
+            if (b.getTotalPrice()!=null) s.setAmountRemaining(b.getTotalPrice().subtract(paid));
             return s;
         }).toList();
 
         return new PagedResponse<>(items, page.getTotalElements(), page.getNumber(), page.getSize());
+    }
+
+    // (tuỳ chọn) helper build summary cho GET /bookings/{id}
+    public BookingSummary summaryOf(BookingEntity b){
+        var s = new BookingSummary();
+        s.setId(b.getId());
+        if (b.getRoom() != null) {
+            s.setRoomId(b.getRoom().getId());
+            s.setRoomName(b.getRoom().getRoomName());
+            s.setRoomImageUrl(b.getRoom().getImageUrl());
+            s.setBedLayout(b.getRoom().getBedLayout() != null ? b.getRoom().getBedLayout().getLayoutName() : null);
+            s.setGuests(b.getRoom().getCapacity());
+        }
+        s.setCheckIn(b.getCheckIn());
+        s.setCheckOut(b.getCheckOut());
+        s.setTotalPrice(b.getTotalPrice());
+        s.setStatus(b.getStatus());
+        s.setPaymentState(b.getPaymentState());
+        s.setDepositAmount(b.getDepositAmount());
+        var paid = paymentRepository.sumPaidByBooking(b.getId());
+        if (paid == null) paid = java.math.BigDecimal.ZERO;
+        s.setAmountPaid(paid);
+        if (b.getTotalPrice()!=null) s.setAmountRemaining(b.getTotalPrice().subtract(paid));
+        return s;
     }
 }

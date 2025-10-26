@@ -12,23 +12,49 @@ import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<BookingEntity, Integer> {
 
+  // === Duyệt thanh toán: booking đã có giao dịch (cọc/full), còn pending/confirmed, CHƯA review
+  @Query("""
+      select b from BookingEntity b
+      where b.paymentState in ('deposit_paid','paid_in_full')
+        and b.status in ('pending','confirmed')
+        and b.paymentReviewedAt is null
+      order by b.createdAt desc
+      """)
+  Page<BookingEntity> findPendingPaymentReviews(Pageable pageable);
+
   Optional<BookingEntity> findByIdAndAccount_Id(Integer id, Integer accountId);
 
   @Query("""
-          SELECT b FROM BookingEntity b
-          WHERE (:accountId IS NULL OR b.account.id = :accountId)
-            AND (:status IS NULL OR LOWER(b.status) = LOWER(:status))
+      select b from BookingEntity b
+      where (:accountId is null or b.account.id = :accountId)
+        and (:status is null or lower(b.status) = lower(:status))
       """)
-
   Page<BookingEntity> findForHistory(@Param("accountId") Integer accountId,
-      @Param("status") String status,
-      Pageable pageable);
+                                     @Param("status") String status,
+                                     Pageable pageable);
+
+  BookingEntity findBookingById(Integer bookingId);
 
   // Check if room has active bookings (for status update validation)
   boolean existsByRoom_IdAndStatusInAndCheckOutAfter(
       Integer roomId,
       List<String> statuses,
       LocalDate date);
+
+  @Query("""
+      SELECT COUNT(b) > 0
+      FROM BookingEntity b
+      WHERE b.room.id = :roomId
+        AND (
+          LOWER(b.status) IN ('confirmed','checked_in')
+          OR b.paymentState IN ('deposit_paid','paid_in_full')
+        )
+        AND :checkIn < b.checkOut
+        AND :checkOut > b.checkIn
+      """)
+  boolean hasActiveConflict(@Param("roomId") Integer roomId,
+                            @Param("checkIn") LocalDate checkIn,
+                            @Param("checkOut") LocalDate checkOut);
 
   // Count bookings by room (for popular rooms recommendation)
   @Query("""
@@ -51,6 +77,6 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       """)
   List<Object[]> findUserPreferredRoomTypes(@Param("accountId") Integer accountId);
 
-  // Find all bookings by account ID (for employee service)
+  // Find all bookings by account ID
   List<BookingEntity> findAllByAccount_Id(Integer accountId);
 }

@@ -84,4 +84,10 @@ public class AuthService {
         return accountRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
     }
+    
+    public Optional<Account> getCurrentAccount() {
+        // This is a simplified implementation - in a real app, you'd get the token from SecurityContext
+        // For now, we'll return empty to indicate no current user
+        return Optional.empty();
+    }
 }

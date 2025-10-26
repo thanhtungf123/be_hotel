@@ -49,4 +49,26 @@ public class BookingQueryController {
         return ResponseEntity.ok(bookingQueryService.listMine(null, "cancel_requested", pageable));
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<BookingSummary> getOne(
+            @RequestHeader("X-Auth-Token") String token,
+            @PathVariable("id") Integer id){
+        Integer accountId = authService.verify(token)
+                .orElseThrow(() -> new IllegalArgumentException("Bạn cần đăng nhập"));
+
+        var be = bookingQueryServiceRaw().findById(id).orElseThrow(() -> new IllegalArgumentException("Không tìm thấy"));
+        if (be.getAccount()==null || !be.getAccount().getId().equals(accountId))
+            return ResponseEntity.status(403).build();
+
+        // Dùng helper summaryOf trong service impl
+        var svc = (com.luxestay.hotel.service.impl.BookingQueryServiceImpl) bookingQueryService;
+        return ResponseEntity.ok(svc.summaryOf(be));
+    }
+
+    /* helper tạm — hoặc bạn inject BookingRepository để findById */
+    private com.luxestay.hotel.repository.BookingRepository bookingQueryServiceRaw(){
+        return (com.luxestay.hotel.repository.BookingRepository)
+                (new org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor());
+    }
+
 }

@@ -15,10 +15,15 @@ import java.util.Map;
 @RequestMapping("/api/bookings")
 @RequiredArgsConstructor
 // CORS - cái này cấp quyền cho đường dẫn FE nếu không call được API từ FE tới BE
-@CrossOrigin(origins = {
+@CrossOrigin(
+    origins = {
         "http://localhost:5173", "http://127.0.0.1:5173",
         "http://localhost:4173", "http://localhost:3000"
-})
+    },
+    allowedHeaders = {"X-Auth-Token","Authorization","Content-Type"},
+    exposedHeaders = {"X-Auth-Token","Location"},
+    maxAge = 3600
+)
 public class BookingController {
 
     private final BookingService bookingService;
@@ -27,10 +32,18 @@ public class BookingController {
     @PostMapping
     public ResponseEntity<BookingResponse> create(
             @RequestHeader(value = "X-Auth-Token", required = false) String token,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestBody BookingRequest req
     ) {
+        // Nếu X-Auth-Token không có, thử Authorization header
+        if ((token == null || token.isBlank()) && authorization != null && authorization.startsWith("Bearer ")) {
+            token = authorization.substring(7);
+        }
         var accountIdOpt = authService.verify(token);
-        if (accountIdOpt.isEmpty()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (accountIdOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(null);
+        }
         BookingResponse res = bookingService.create(accountIdOpt.get(), req);
         return ResponseEntity.status(HttpStatus.CREATED).body(res);
     }
