@@ -17,7 +17,6 @@
   <description>Hotel management backend (Spring Boot)</description>
 
   <properties>
-    <!-- Nếu bạn dùng JDK 21 khi chạy, nên để 21 cho thống nhất -->
     <java.version>21</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -90,21 +89,47 @@
 
   <build>
     <plugins>
-      <!-- Không cần ghi version; parent đã quản lý -->
+      <!-- Spring Boot -->
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
 
+      <!-- Compiler -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
         <configuration>
-          <!-- Khi dùng parent, chỉ cần chỉ định release -->
+          <!-- Dùng release để đồng bộ toolchain JDK -->
           <release>${java.version}</release>
           <compilerArgs>
             <arg>-parameters</arg>
           </compilerArgs>
+        </configuration>
+      </plugin>
+
+      <!-- JaCoCo coverage -> output vào thư mục /coverage -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.8.10</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>test</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <outputDirectory>${project.basedir}/coverage</outputDirectory>
         </configuration>
       </plugin>
     </plugins>
