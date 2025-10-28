@@ -56,4 +56,19 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
                                 @Param("checkIn") LocalDate checkIn,
                                 @Param("checkOut") LocalDate checkOut);
     Optional<BookingEntity> findAllByAccount_Id(Integer accountId);
+
+    @Query("""
+        select b from BookingEntity b
+        where b.room.id = :roomId
+        and (
+        lower(b.status) in ('pending','confirmed','checked_in')
+        or b.paymentState in ('deposit_paid','paid_in_full')
+        )
+        and :start < b.checkOut
+        and :end   > b.checkIn
+        order by b.checkIn
+        """)
+        List<BookingEntity> findOverlaps(@Param("roomId") Integer roomId,
+                                        @Param("start") LocalDate start,
+                                        @Param("end")   LocalDate end);
 }
