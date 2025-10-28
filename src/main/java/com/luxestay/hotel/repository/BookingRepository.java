@@ -41,6 +41,39 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       List<String> statuses,
       LocalDate date);
 
+<<<<<<< HEAD
+     @Query("""
+        SELECT COUNT(b) > 0
+        FROM BookingEntity b
+        WHERE b.room.id = :roomId
+                AND (
+                LOWER(b.status) IN ('confirmed','checked_in')
+                OR b.paymentState IN ('deposit_paid','paid_in_full')
+                )
+                AND :checkIn < b.checkOut
+                AND :checkOut > b.checkIn
+        """)
+        boolean hasActiveConflict(@Param("roomId") Integer roomId,
+                                @Param("checkIn") LocalDate checkIn,
+                                @Param("checkOut") LocalDate checkOut);
+    Optional<BookingEntity> findAllByAccount_Id(Integer accountId);
+
+    @Query("""
+        select b from BookingEntity b
+        where b.room.id = :roomId
+        and (
+        lower(b.status) in ('pending','confirmed','checked_in')
+        or b.paymentState in ('deposit_paid','paid_in_full')
+        )
+        and :start < b.checkOut
+        and :end   > b.checkIn
+        order by b.checkIn
+        """)
+        List<BookingEntity> findOverlaps(@Param("roomId") Integer roomId,
+                                        @Param("start") LocalDate start,
+                                        @Param("end")   LocalDate end);
+}
+=======
   @Query("""
       SELECT COUNT(b) > 0
       FROM BookingEntity b
@@ -80,3 +113,4 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
   // Find all bookings by account ID
   List<BookingEntity> findAllByAccount_Id(Integer accountId);
 }
+>>>>>>> 1817165665329b070f59038681b3630967f0bf7d
