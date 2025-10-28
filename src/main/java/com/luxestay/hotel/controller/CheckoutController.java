@@ -1,6 +1,5 @@
 package com.luxestay.hotel.controller;
 
-
 import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.model.Payment;
 import com.luxestay.hotel.repository.BookingRepository;
@@ -44,7 +43,7 @@ public class CheckoutController {
 
     @Autowired
     public CheckoutController(PayOS payOS, BookingRepository bookingRepository,
-                              PaymentRepository paymentRepository, BookingService bookingService) {
+            PaymentRepository paymentRepository, BookingService bookingService) {
         this.payOS = payOS;
         this.bookingRepository = bookingRepository;
         this.paymentRepository = paymentRepository;
@@ -54,18 +53,19 @@ public class CheckoutController {
     @PostMapping("/{bookingId}/create-payment-link")
     public ResponseEntity<ApiResponse<CreatePaymentLinkResponse>> createPaymentLink(
             @PathVariable("bookingId") Integer bookingId,
-            @RequestParam(name = "purpose", defaultValue = "full") String purpose
-    ) {
+            @RequestParam(name = "purpose", defaultValue = "full") String purpose) {
         try {
             Optional<BookingEntity> bookingOpt = bookingRepository.findById(bookingId);
             if (bookingOpt.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("Booking not found with ID: " + bookingId));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error("Booking not found with ID: " + bookingId));
             }
             BookingEntity booking = bookingOpt.get();
 
             // Số tiền theo mục đích
             BigDecimal paid = paymentRepository.sumPaidByBooking(bookingId);
-            if (paid == null) paid = BigDecimal.ZERO;
+            if (paid == null)
+                paid = BigDecimal.ZERO;
 
             BigDecimal amountDecimal;
             switch (purpose.toLowerCase()) {
@@ -104,10 +104,10 @@ public class CheckoutController {
             return ResponseEntity.ok(ApiResponse.success(payosResponse));
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.error("Failed to create payment link: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to create payment link: " + e.getMessage()));
         }
     }
-
 
     @GetMapping("/return")
     public ResponseEntity<Void> handleReturn(
@@ -115,8 +115,7 @@ public class CheckoutController {
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String id,
-            @RequestParam(required = false) Long orderCode
-    ) {
+            @RequestParam(required = false) Long orderCode) {
         try {
             boolean success = "00".equalsIgnoreCase(String.valueOf(code))
                     || "PAID".equalsIgnoreCase(String.valueOf(status));
@@ -125,7 +124,8 @@ public class CheckoutController {
                 if (booking != null) {
                     paymentRepository.save(Payment.builder()
                             .booking(booking)
-                            .amount(booking.getTotalPrice()) // lưu fallback full; thực tế PayOS có amount, nếu cần parse thêm
+                            .amount(booking.getTotalPrice()) // lưu fallback full; thực tế PayOS có amount, nếu cần
+                                                             // parse thêm
                             .paymentMethod("PayOS")
                             .paymentDate(java.time.LocalDateTime.now())
                             .status("completed")
@@ -135,7 +135,8 @@ public class CheckoutController {
                     bookingService.onPaymentCaptured(bookingId);
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ignore) {
+        }
 
         String feBase = frontendBaseUrl != null ? frontendBaseUrl : "http://localhost:5173";
         String location = feBase.replaceAll("/+$", "") + "/payment/success?bookingId=" + bookingId;
@@ -155,7 +156,8 @@ public class CheckoutController {
         try {
             Object data = payOS.webhooks().verify(body);
             ObjectMapper mapper = new ObjectMapper();
-            var map = mapper.convertValue(data, new TypeReference<java.util.Map<String,Object>>(){});
+            var map = mapper.convertValue(data, new TypeReference<java.util.Map<String, Object>>() {
+            });
             String code = String.valueOf(map.getOrDefault("code", ""));
             String idStr = String.valueOf(map.getOrDefault("id", ""));
             long orderCode = Long.parseLong(String.valueOf(map.getOrDefault("orderCode", "0")));
