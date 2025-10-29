@@ -3,22 +3,21 @@ package com.luxestay.hotel.controller;
 
 import com.luxestay.hotel.dto.employee.EmployeeRequest;
 import com.luxestay.hotel.dto.employee.EmployeeResponse;
-import com.luxestay.hotel.model.Employee;
-import com.luxestay.hotel.model.Services;
+import com.luxestay.hotel.model.*;
 import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.repository.AccountRepository;
 import com.luxestay.hotel.repository.EmployeeRepository;
 import com.luxestay.hotel.repository.RoleRepository;
+import com.luxestay.hotel.repository.WorkShiftRepository;
 import com.luxestay.hotel.service.AccountService;
 import com.luxestay.hotel.service.AuthService;
 
-import com.luxestay.hotel.model.Account;
-import com.luxestay.hotel.model.Role;
 import com.luxestay.hotel.service.EmployeeService;
 import com.luxestay.hotel.service.ServicesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,6 +47,9 @@ public class AdminController {
     @Autowired
     private final ServicesService servicesService;
     private final PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private WorkShiftRepository workShiftRepository;
     /**
      * Guard admin theo X-Auth-Token
      */
@@ -214,7 +217,96 @@ public class AdminController {
         servicesService.deleteService(id);
     }
 
-    
+    //==========================================Workshift========================================
+
+    @GetMapping("/schedules")
+    public List<WorkShift> getShiftsInRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
+
+        return workShiftRepository.findByStartTimeBetween(start, end);
+    }
+
+    @GetMapping("/schedules/{shiftId}")
+    public WorkShift getShift(@PathVariable("shiftId") Integer id) {
+        return workShiftRepository.findById(id).get();
+    }
+
+    @GetMapping("/workshifts")
+    public List<WorkShift> getWorkShifts(){
+        return workShiftRepository.findAll();
+    }
+
+    // Tạo một ca làm việc mới
+    // THAY ĐỔI 2: Trả về WorkShift trực tiếp và dùng @ResponseStatus.
+    @PostMapping("/schedules/create")
+    @ResponseStatus(HttpStatus.CREATED) // Sẽ trả về HTTP 201 (Created) khi thành công
+    public WorkShift createShift(@RequestBody WorkShift newShift) {
+        if (newShift.getEmployee() == null || newShift.getEmployee().getId() == null) {
+            // LƯU Ý: Không có ResponseEntity, cách duy nhất để báo lỗi
+            // "Bad Request" (HTTP 400) là ném một Exception.
+            throw new IllegalArgumentException("Employee ID không được rỗng khi tạo ca làm việc.");
+        }
+
+        // Tìm nhân viên đầy đủ từ DB
+        int employeeId = newShift.getEmployee().getId();
+        Employee employee = employeeService.get(employeeId);
+
+        newShift.setEmployee(employee);
+        newShift.setId(0);
+
+        if (newShift.getStatus() == null || newShift.getStatus().isEmpty()) {
+            newShift.setStatus("Scheduled");
+        }
+
+        return workShiftRepository.save(newShift);
+    }
+
+    // Cập nhật một ca làm việc
+    // THAY ĐỔI 3: Trả về WorkShift trực tiếp.
+    // Spring sẽ tự động trả về HTTP 200 (OK) khi thành công.
+    @PutMapping("/schedules/{shiftId}")
+    public WorkShift updateShift(
+            @PathVariable int shiftId,
+            @RequestBody WorkShift updateData) {
+
+        WorkShift existingShift = workShiftRepository.findById(shiftId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ca làm việc với ID: " + shiftId));
+
+        // Cập nhật nhân viên nếu ID thay đổi
+        if (updateData.getEmployee() != null && updateData.getEmployee().getId() != null &&
+                !updateData.getEmployee().getId().equals(existingShift.getEmployee().getId())) {
+
+            int newEmployeeId = updateData.getEmployee().getId();
+            Employee newEmployee = employeeService.get(newEmployeeId);
+            existingShift.setEmployee(newEmployee);
+        }
+
+        // Cập nhật các thông tin khác
+        existingShift.setStartTime(updateData.getStartTime());
+        existingShift.setEndTime(updateData.getEndTime());
+        existingShift.setShiftDetails(updateData.getShiftDetails());
+        existingShift.setStatus(updateData.getStatus());
+
+        return workShiftRepository.save(existingShift);
+    }
+
+    // Xóa một ca làm việc
+    // THAY ĐỔI 4: Trả về void và dùng @ResponseStatus.
+    @DeleteMapping("/schedules/{shiftId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT) // Sẽ trả về HTTP 204 (No Content) khi thành công
+    public void deleteShift(@PathVariable int shiftId) {
+
+        // LƯU Ý: Phải kiểm tra trước khi xóa
+        if (!workShiftRepository.existsById(shiftId)) {
+            // Ném exception để báo lỗi "Not Found"
+            // Nếu không có @ControllerAdvice, lỗi này sẽ thành HTTP 500
+            throw new RuntimeException("Không tìm thấy ca làm việc với ID: " + shiftId);
+        }
+
+        workShiftRepository.deleteById(shiftId);
+        // Không trả về gì cả (void)
+    }
 
 
 
