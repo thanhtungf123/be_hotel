@@ -234,7 +234,7 @@ public class AdminController {
 
     // Tạo một ca làm việc mới
     // THAY ĐỔI 2: Trả về WorkShift trực tiếp và dùng @ResponseStatus.
-    @PostMapping("/schedules")
+    @PostMapping("/schedules/create")
     @ResponseStatus(HttpStatus.CREATED) // Sẽ trả về HTTP 201 (Created) khi thành công
     public WorkShift createShift(@RequestBody WorkShift newShift) {
         if (newShift.getEmployee() == null || newShift.getEmployee().getId() == null) {

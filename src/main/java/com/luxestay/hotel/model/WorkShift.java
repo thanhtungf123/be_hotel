@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "work_shifts")
@@ -15,7 +16,7 @@ import java.time.LocalDateTime;
 @Builder
 public class WorkShift {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
     // Mối quan hệ nhiều-một với Employee
     // Nhiều ca làm việc có thể thuộc về một nhân viên
