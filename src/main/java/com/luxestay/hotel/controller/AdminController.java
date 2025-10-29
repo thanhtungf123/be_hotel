@@ -227,6 +227,11 @@ public class AdminController {
         return workShiftRepository.findByStartTimeBetween(start, end);
     }
 
+    @GetMapping("/workshifts")
+    public List<WorkShift> getWorkShifts(){
+        return workShiftRepository.findAll();
+    }
+
     // Tạo một ca làm việc mới
     // THAY ĐỔI 2: Trả về WorkShift trực tiếp và dùng @ResponseStatus.
     @PostMapping("/schedules")
