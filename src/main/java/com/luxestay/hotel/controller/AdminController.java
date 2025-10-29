@@ -227,6 +227,11 @@ public class AdminController {
         return workShiftRepository.findByStartTimeBetween(start, end);
     }
 
+    @GetMapping("/schedules/{shiftId}")
+    public WorkShift getShift(@PathVariable("shiftId") Integer id) {
+        return workShiftRepository.findById(id).get();
+    }
+
     @GetMapping("/workshifts")
     public List<WorkShift> getWorkShifts(){
         return workShiftRepository.findAll();
