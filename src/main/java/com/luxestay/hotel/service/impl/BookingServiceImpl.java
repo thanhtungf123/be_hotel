@@ -220,11 +220,7 @@ public class BookingServiceImpl implements BookingService {
             booking.setStatus("confirmed");
             bookingRepository.save(booking);
         }
-        var room = booking.getRoom();
-        if (room != null) {
-            // giữ nguyên behaviour: phòng sẽ không xuất hiện trong search vì status != 'available'
-            room.setStatus("reserved");
-            roomRepository.save(room);
-        }
+        // Room is blocked by the booking itself
+        // The hasActiveConflict check in create() prevents double-booking
     }
 }

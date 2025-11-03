@@ -35,7 +35,33 @@ public class UploadController {
       }
 
       var res = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
-          "folder", "luxestay/id-cards",
+          "folder", "aurora-palace/id-cards",
+          "resource_type", "image",
+          "secure", true,
+          "use_filename", true,
+          "unique_filename", true
+      ));
+      return ResponseEntity.ok(Map.of("url", res.get("secure_url")));
+    } catch (Exception e) {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body(Map.of("message","Upload thất bại", "error", e.getMessage()));
+    }
+  }
+
+  @PostMapping(path="/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public ResponseEntity<?> uploadAvatar(@RequestPart("file") MultipartFile file) {
+    try {
+      if (file == null || file.isEmpty()) {
+        return ResponseEntity.badRequest().body(Map.of("message","File rỗng"));
+      }
+      String ct = file.getContentType() != null ? file.getContentType() : "";
+      if (!ct.startsWith("image/")) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+            .body(Map.of("message","Chỉ chấp nhận file ảnh"));
+      }
+
+      var res = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
+          "folder", "aurora-palace/avatars",
           "resource_type", "image",
           "secure", true,
           "use_filename", true,

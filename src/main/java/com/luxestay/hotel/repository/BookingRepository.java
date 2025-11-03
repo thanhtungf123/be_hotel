@@ -94,4 +94,16 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
 
   // Tất cả booking theo account
   List<BookingEntity> findAllByAccount_Id(Integer accountId);
+
+  // Lấy tất cả bookings active của 1 phòng
+  @Query("""
+      select b from BookingEntity b
+      where b.room.id = :roomId
+        and (
+          lower(b.status) in ('confirmed','checked_in')
+          or b.paymentState in ('deposit_paid','paid_in_full')
+        )
+      order by b.checkIn
+      """)
+  List<BookingEntity> findActiveBookingsByRoom(@Param("roomId") Integer roomId);
 }
