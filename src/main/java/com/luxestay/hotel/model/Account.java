@@ -38,6 +38,9 @@ public class Account {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
     // inverse side (no join column here)
     @OneToOne(mappedBy = "account")
     @JsonIgnore

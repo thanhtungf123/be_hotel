@@ -19,4 +19,8 @@ public interface BookingService {
     @Transactional
         // Đảm bảo cả 2 cùng thành công
     void confirmBookingPayment(int bookingId);
+
+    @Transactional
+    void onPaymentCaptured(int bookingId);
+
 }

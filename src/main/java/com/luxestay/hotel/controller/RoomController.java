@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import com.luxestay.hotel.repository.BookingRepository;
 
 import java.time.LocalDate;
 import java.util.Arrays;
@@ -37,6 +38,7 @@ import java.util.Map;
 public class RoomController {
     private final RoomService roomService;
     private final AuthorizationHelper authHelper;
+    private final BookingRepository bookingRepository; 
 
     @GetMapping
     public List<Room> getRooms() {
@@ -254,5 +256,38 @@ public class RoomController {
             @PathVariable Long id, @PathVariable Integer imageId) {
         roomService.deleteImage(id, imageId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/availability")
+    public Map<String, Object> roomAvailabilityPreview(
+            @PathVariable("id") Long id,
+            @RequestParam("start") String startStr,
+            @RequestParam("end")   String endStr
+    ) {
+        var start = LocalDate.parse(startStr);
+        var end   = LocalDate.parse(endStr);
+
+        var overlaps = bookingRepository.findOverlaps(id.intValue(), start, end);
+
+        if (overlaps.isEmpty()) {
+            return Map.of("available", true, "availableFrom", start, "blocked", List.of());
+        }
+
+        // build danh sách khoảng bị chặn
+        var blocked = overlaps.stream().map(b -> Map.of(
+                "start", b.getCheckIn().toString(),
+                "end",   b.getCheckOut().toString()
+        )).toList();
+
+        var availableFrom = overlaps.stream()
+                .map(b -> b.getCheckOut())
+                .max(LocalDate::compareTo)
+                .orElse(start);
+
+        return Map.of(
+                "available", false,
+                "availableFrom", availableFrom,
+                "blocked", blocked
+        );
     }
 }

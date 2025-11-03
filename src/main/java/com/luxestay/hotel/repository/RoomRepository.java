@@ -47,29 +47,32 @@ public interface RoomRepository extends JpaRepository<RoomEntity, Integer>, JpaS
        * Chỉ check các booking có status: pending, confirmed, checked_in
        */
       @Query("""
-                     SELECT r
-                     FROM RoomEntity r
-                     LEFT JOIN FETCH r.bedLayout bl
-                     WHERE r.status = 'available'
-                       AND (:minPrice IS NULL OR r.pricePerNight >= :minPrice)
-                       AND (:maxPrice IS NULL OR r.pricePerNight <= :maxPrice)
-                       AND (:minCapacity IS NULL OR r.capacity >= :minCapacity)
-                       AND NOT EXISTS (
-                           SELECT b
-                           FROM BookingEntity b
-                           WHERE b.room.id = r.id
-                             AND b.status IN ('pending', 'confirmed', 'checked_in')
-                             AND :checkIn < b.checkOut
-                             AND :checkOut > b.checkIn
-                       )
-                  """)
+            SELECT r
+            FROM RoomEntity r
+            LEFT JOIN FETCH r.bedLayout bl
+            WHERE r.status = 'available'
+            AND (:minPrice IS NULL OR r.pricePerNight >= :minPrice)
+            AND (:maxPrice IS NULL OR r.pricePerNight <= :maxPrice)
+            AND (:minCapacity IS NULL OR r.capacity >= :minCapacity)
+            AND NOT EXISTS (
+            SELECT b
+            FROM BookingEntity b
+            WHERE b.room.id = r.id
+                  AND (
+                  LOWER(b.status) IN ('confirmed','checked_in')
+                  OR b.paymentState IN ('deposit_paid','paid_in_full')
+                  )
+                  AND :checkIn < b.checkOut
+                  AND :checkOut > b.checkIn
+            )
+            """)
       Page<RoomEntity> findAvailableRooms(
-                  @Param("checkIn") LocalDate checkIn,
-                  @Param("checkOut") LocalDate checkOut,
-                  @Param("minCapacity") Integer minCapacity,
-                  @Param("minPrice") Integer minPrice,
-                  @Param("maxPrice") Integer maxPrice,
-                  Pageable pageable);
+            @Param("checkIn") LocalDate checkIn,
+            @Param("checkOut") LocalDate checkOut,
+            @Param("minCapacity") Integer minCapacity,
+            @Param("minPrice") Integer minPrice,
+            @Param("maxPrice") Integer maxPrice,
+            Pageable pageable);
 
       // Check if room number exists (for validation)
       boolean existsByRoomNumber(String roomNumber);
