@@ -53,6 +53,22 @@ public class PaymentController {
             String idStr = String.valueOf(map.getOrDefault("id", ""));
             long orderCode = Long.parseLong(String.valueOf(map.getOrDefault("orderCode", "0")));
 
+            // Try to extract paid amount from webhook payload
+            java.math.BigDecimal paidAmount = null;
+            try {
+                Object amtObj = map.get("amount");
+                if (amtObj == null && map.get("data") instanceof java.util.Map<?,?> dataMap) {
+                    Object innerAmt = ((java.util.Map<?,?>) dataMap).get("amount");
+                    if (innerAmt == null && ((java.util.Map<?,?>) dataMap).get("data") instanceof java.util.Map<?,?> deeper) {
+                        innerAmt = deeper.get("amount");
+                    }
+                    amtObj = innerAmt;
+                }
+                if (amtObj != null) {
+                    paidAmount = new java.math.BigDecimal(String.valueOf(amtObj));
+                }
+            } catch (Exception ignore) {}
+
             if ("00".equals(code)) {
 
                 try {
@@ -60,7 +76,7 @@ public class PaymentController {
                     BookingEntity booking = bookingRepository.findById((int) orderCode)
                             .orElse(null);
                     if (booking != null) {
-                        BigDecimal amount = booking.getTotalPrice();
+                        BigDecimal amount = paidAmount != null ? paidAmount : booking.getTotalPrice();
                         Payment payment = Payment.builder()
                                 .booking(booking)
                                 .amount(amount)

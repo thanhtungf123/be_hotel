@@ -116,28 +116,7 @@ public class CheckoutController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String id,
             @RequestParam(required = false) Long orderCode) {
-        try {
-            boolean success = "00".equalsIgnoreCase(String.valueOf(code))
-                    || "PAID".equalsIgnoreCase(String.valueOf(status));
-            if (success) {
-                BookingEntity booking = bookingRepository.findById(bookingId).orElse(null);
-                if (booking != null) {
-                    paymentRepository.save(Payment.builder()
-                            .booking(booking)
-                            .amount(booking.getTotalPrice()) // lưu fallback full; thực tế PayOS có amount, nếu cần
-                                                             // parse thêm
-                            .paymentMethod("PayOS")
-                            .paymentDate(java.time.LocalDateTime.now())
-                            .status("completed")
-                            .transactionId(id)
-                            .build());
-                    // NEW:
-                    bookingService.onPaymentCaptured(bookingId);
-                }
-            }
-        } catch (Exception ignore) {
-        }
-
+        // Không ghi nhận thanh toán ở bước return để tránh ghi sai số tiền; cập nhật dựa vào webhook
         String feBase = frontendBaseUrl != null ? frontendBaseUrl : "http://localhost:5173";
         String location = feBase.replaceAll("/+$", "") + "/payment/success?bookingId=" + bookingId;
         return ResponseEntity.status(302).header(HttpHeaders.LOCATION, location).build();
@@ -161,12 +140,27 @@ public class CheckoutController {
             String code = String.valueOf(map.getOrDefault("code", ""));
             String idStr = String.valueOf(map.getOrDefault("id", ""));
             long orderCode = Long.parseLong(String.valueOf(map.getOrDefault("orderCode", "0")));
+            // Lấy số tiền thực tế từ webhook nếu có
+            java.math.BigDecimal paidAmount = null;
+            try {
+                Object amtObj = map.get("amount");
+                Object dataNode = map.get("data");
+                if (amtObj == null && dataNode instanceof java.util.Map<?,?> dm) {
+                    Object innerAmt = ((java.util.Map<?,?>) dm).get("amount");
+                    Object innerData = ((java.util.Map<?,?>) dm).get("data");
+                    if (innerAmt == null && innerData instanceof java.util.Map<?,?> deeper) {
+                        innerAmt = deeper.get("amount");
+                    }
+                    amtObj = innerAmt;
+                }
+                if (amtObj != null) paidAmount = new java.math.BigDecimal(String.valueOf(amtObj));
+            } catch (Exception ignore) {}
 
             if ("00".equals(code)) {
                 try {
                     BookingEntity booking = bookingRepository.findById((int) orderCode).orElse(null);
                     if (booking != null) {
-                        BigDecimal amount = booking.getTotalPrice(); // nếu cần lấy exact amount từ webhook, parse thêm
+                        BigDecimal amount = paidAmount != null ? paidAmount : booking.getTotalPrice();
                         Payment payment = Payment.builder()
                                 .booking(booking)
                                 .amount(amount)
@@ -178,7 +172,7 @@ public class CheckoutController {
                         paymentRepository.save(payment);
                     }
 
-                    // ✅ Block ngay sau thanh toán
+                    // ✅ Cập nhật trạng thái thanh toán đúng theo tổng đã trả
                     bookingService.onPaymentCaptured((int) orderCode);
                 } catch (Exception e) {
                     System.err.println("Error processing payment confirmation logic: " + e.getMessage());
