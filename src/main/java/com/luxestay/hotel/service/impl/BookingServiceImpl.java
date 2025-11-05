@@ -8,6 +8,7 @@ import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.model.entity.RoomEntity;
 import com.luxestay.hotel.repository.*;
 import com.luxestay.hotel.service.BookingService;
+import com.luxestay.hotel.service.EmailService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
@@ -32,6 +33,7 @@ public class BookingServiceImpl implements BookingService {
     private final AccountRepository accountRepository;
     private final PaymentRepository paymentRepository;
     private final BookingCustomerDetailsRepository bookingCustomerDetailsRepository;
+    private final EmailService emailService;
 
     @Override
     @Transactional
@@ -125,6 +127,27 @@ public class BookingServiceImpl implements BookingService {
             b.setStatus("confirmed");
         }
         bookingRepository.save(b);
+
+        // Generate check-in code and email notification (only once)
+        if (("deposit_paid".equals(state) || "paid_in_full".equals(state))
+                && (b.getCheckInCode() == null || b.getCheckInCode().isBlank())) {
+            String code = generateCheckInCode(6);
+            b.setCheckInCode(code);
+            bookingRepository.save(b);
+            try {
+                String email = b.getAccount() != null ? b.getAccount().getEmail() : null;
+                String customerName = b.getCustomerDetails()!=null ? b.getCustomerDetails().getFullName() : (b.getAccount()!=null? b.getAccount().getFullName(): "Quý khách");
+                String roomName = b.getRoom()!=null ? b.getRoom().getRoomName() : "";
+                String in = b.getCheckIn()!=null ? b.getCheckIn().toString() : "";
+                String out = b.getCheckOut()!=null ? b.getCheckOut().toString() : "";
+                if (email != null && !email.isBlank()) {
+                    emailService.sendBookingConfirmation(email, customerName, roomName, in, out, state, code);
+                }
+            } catch (Exception e) {
+                // log and continue
+                System.err.println("Failed to send booking confirmation email: " + e.getMessage());
+            }
+        }
     }
 
     @Override
@@ -185,6 +208,14 @@ public class BookingServiceImpl implements BookingService {
     private String append(String base, String extra) {
         if (base == null || base.isBlank()) return extra;
         return base + "\n" + extra;
+    }
+
+    private String generateCheckInCode(int length){
+        final String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // avoid ambiguous chars
+        StringBuilder sb = new StringBuilder();
+        java.util.Random rnd = new java.util.Random();
+        for (int i=0;i<length;i++) sb.append(chars.charAt(rnd.nextInt(chars.length())));
+        return sb.toString();
     }
 
     @Override
