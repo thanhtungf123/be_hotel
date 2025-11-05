@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -87,6 +89,12 @@ public class StaffBookingController {
         b.setStatus("confirmed");
         b.setCreatedAt(LocalDateTime.now());
         bookingRepository.save(b);
+        
+        // Generate check-in code after saving (when ID is available)
+        if (b.getId() != null) {
+            b.setCheckInCode(generateCheckInCode(b.getId()));
+            bookingRepository.save(b);
+        }
 
         // Save customer details
         BookingCustomerDetails k = new BookingCustomerDetails();
@@ -133,6 +141,77 @@ public class StaffBookingController {
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(Map.of("items", schedule));
+    }
+
+    /** Danh sách bookings cho staff/admin, lọc theo status hoặc paymentState (tối giản) */
+    @GetMapping
+    public ResponseEntity<?> list(
+            @RequestHeader("X-Auth-Token") String token,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "paymentState", required = false) String paymentState,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size
+    ){
+        Account acc = authService.requireAccount(token);
+        ensureStaffOrAdmin(acc);
+
+        int p = page==null?0:Math.max(0,page);
+        int s = size==null?20:Math.max(1, Math.min(100,size));
+        Pageable pageable = PageRequest.of(p, s);
+
+        // đơn giản: lấy tất cả rồi filter trong bộ nhớ (BE hiện chưa có query page cụ thể)
+        var all = bookingRepository.findAll(pageable).getContent();
+        var items = all.stream()
+                .filter(b -> status==null || (b.getStatus()!=null && b.getStatus().equalsIgnoreCase(status)))
+                .filter(b -> paymentState==null || (b.getPaymentState()!=null && b.getPaymentState().equalsIgnoreCase(paymentState)))
+                .map(b -> Map.of(
+                        "id", b.getId(),
+                        "roomName", b.getRoom()!=null? b.getRoom().getRoomName(): null,
+                        "checkIn", b.getCheckIn()!=null? b.getCheckIn().toString(): null,
+                        "checkOut", b.getCheckOut()!=null? b.getCheckOut().toString(): null,
+                        "totalPrice", b.getTotalPrice(),
+                        "status", b.getStatus(),
+                        "paymentState", b.getPaymentState(),
+                        "customerName", b.getCustomerDetails()!=null? b.getCustomerDetails().getFullName(): (b.getAccount()!=null? b.getAccount().getFullName(): null),
+                        "checkInCode", b.getCheckInCode() != null ? b.getCheckInCode() : (b.getId() != null ? generateCheckInCode(b.getId()) : null)
+                ))
+                .toList();
+        java.util.Map<String,Object> resp = new java.util.HashMap<>();
+        resp.put("items", items);
+        resp.put("page", p);
+        resp.put("size", s);
+        resp.put("total", items.size());
+        return ResponseEntity.ok(resp);
+    }
+
+    /** Chi tiết một booking cho staff: gồm KYC (ID images), payment state, mã check-in */
+    @GetMapping("/{id}")
+    public ResponseEntity<?> detail(@RequestHeader("X-Auth-Token") String token,
+                                    @PathVariable Integer id){
+        Account acc = authService.requireAccount(token);
+        ensureStaffOrAdmin(acc);
+
+        BookingEntity b = bookingRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
+
+        BookingCustomerDetails k = b.getCustomerDetails();
+        java.util.Map<String,Object> data = new java.util.HashMap<>();
+        data.put("id", b.getId());
+        data.put("roomName", b.getRoom()!=null? b.getRoom().getRoomName(): null);
+        data.put("checkIn", b.getCheckIn()!=null? b.getCheckIn().toString(): null);
+        data.put("checkOut", b.getCheckOut()!=null? b.getCheckOut().toString(): null);
+        data.put("totalPrice", b.getTotalPrice());
+        data.put("status", b.getStatus());
+        data.put("paymentState", b.getPaymentState());
+        data.put("checkInCode", b.getCheckInCode() != null ? b.getCheckInCode() : (b.getId() != null ? generateCheckInCode(b.getId()) : null));
+        java.util.Map<String,Object> cust = new java.util.HashMap<>();
+        cust.put("fullName", k!=null? k.getFullName(): (b.getAccount()!=null? b.getAccount().getFullName(): null));
+        cust.put("phoneNumber", k!=null? k.getPhoneNumber(): null);
+        cust.put("nationalIdNumber", k!=null? k.getNationalIdNumber(): null);
+        cust.put("idFrontUrl", k!=null? k.getIdFrontUrl(): null);
+        cust.put("idBackUrl", k!=null? k.getIdBackUrl(): null);
+        data.put("customer", cust);
+        return ResponseEntity.ok(data);
     }
 
     /** Check-in: chuyển booking → checked_in, room → occupied */
@@ -215,5 +294,10 @@ public class StaffBookingController {
             roomRepository.save(r);
         }
         return ResponseEntity.ok(Map.of("bookingId", id, "status", "cancelled"));
+    }
+
+    private String generateCheckInCode(Integer bookingId) {
+        // Format: AP + 6-digit booking ID (e.g., AP000123)
+        return String.format("AP%06d", bookingId);
     }
 }

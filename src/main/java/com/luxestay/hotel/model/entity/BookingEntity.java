@@ -70,6 +70,15 @@ public class BookingEntity {
     @Column(name = "payment_note", columnDefinition = "NVARCHAR(MAX)")
     private String paymentNote;
 
+    @Column(name = "adults")
+    private Integer adults;
+
+    @Column(name = "children")
+    private Integer children;
+
+    @Column(name = "check_in_code", length = 20)
+    private String checkInCode;
+
     // getters/setters
     public Integer getId() { return id; }
     public Account getAccount() { return account; }
@@ -108,4 +117,10 @@ public class BookingEntity {
     public void setPaymentReviewedAt(LocalDateTime t) { this.paymentReviewedAt = t; }
     public void setPaymentReviewedBy(Integer id) { this.paymentReviewedBy = id; }
     public void setPaymentNote(String s) { this.paymentNote = s; }
+    public Integer getAdults() { return adults; }
+    public void setAdults(Integer adults) { this.adults = adults; }
+    public Integer getChildren() { return children; }
+    public void setChildren(Integer children) { this.children = children; }
+    public String getCheckInCode() { return checkInCode; }
+    public void setCheckInCode(String checkInCode) { this.checkInCode = checkInCode; }
 }

@@ -48,5 +48,57 @@ public class EmailService {
             e.printStackTrace();
         }
     }
+
+    public void sendBookingConfirmation(String toEmail, String customerName,
+                                        String roomName, String checkIn, String checkOut,
+                                        String paymentState, String checkInCode) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromEmail);
+        message.setTo(toEmail);
+        message.setSubject("✅ Xác nhận đặt phòng & Mã Check-in - Aurora Palace Hotel");
+
+        String content = String.format("""
+            Kính chào %s,
+
+            Cảm ơn quý khách đã đặt phòng tại Aurora Palace Hotel.
+
+            Thông tin đặt phòng:
+            • Phòng: %s
+            • Ngày nhận phòng: %s
+            • Ngày trả phòng: %s
+            • Trạng thái thanh toán: %s
+
+            Mã check-in của quý khách: %s
+            Vui lòng cung cấp mã này tại quầy lễ tân khi nhận phòng.
+
+            Nếu có bất kỳ thắc mắc nào, xin vui lòng liên hệ:
+            📞 Hotline: +84 123 456 789
+            ✉️ Email: %s
+
+            Trân trọng,
+            Aurora Palace Hotel
+            """, 
+            safe(customerName), safe(roomName), safe(checkIn), safe(checkOut),
+            safe(mapPaymentState(paymentState)), safe(checkInCode), fromEmail);
+
+        message.setText(content);
+        try {
+            mailSender.send(message);
+            System.out.println("✅ Booking email sent to: " + toEmail);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send booking email to: " + toEmail);
+            e.printStackTrace();
+        }
+    }
+
+    private String safe(String s){ return s==null? "-" : s; }
+    private String mapPaymentState(String s){
+        if (s == null) return "unpaid";
+        return switch (s) {
+            case "paid_in_full" -> "Đã thanh toán đủ";
+            case "deposit_paid" -> "Đã thanh toán tiền cọc";
+            default -> "Chưa thanh toán";
+        };
+    }
 }
 

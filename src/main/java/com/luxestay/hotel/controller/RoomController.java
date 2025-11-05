@@ -290,4 +290,13 @@ public class RoomController {
                 "blocked", blocked
         );
     }
+
+    /**
+     * API lấy số lượng phòng theo từng amenities
+     * GET /api/rooms/amenities/counts
+     */
+    @GetMapping("/amenities/counts")
+    public Map<String, Long> getAmenityCounts() {
+        return roomService.getAmenityCounts();
+    }
 }

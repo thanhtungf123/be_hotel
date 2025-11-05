@@ -44,10 +44,22 @@ public class BookingServiceImpl implements BookingService {
         LocalDate out = LocalDate.parse(req.getCheckOut());
         if (!out.isAfter(in)) throw new IllegalArgumentException("Ngày trả phải sau ngày nhận");
 
+        // Validation số khách
+        int adults = req.getAdults() != null ? req.getAdults() : 1;
+        int children = req.getChildren() != null ? req.getChildren() : 0;
+        if (adults < 1) throw new IllegalArgumentException("Số người lớn phải ≥ 1");
+        if (children < 0) throw new IllegalArgumentException("Số trẻ em phải ≥ 0");
+
         RoomEntity room = roomRepository.findById(req.getRoomId().intValue())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng"));
         Account acc = accountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản"));
+
+        // Kiểm tra sức chứa phòng: 2 trẻ em = 1 người lớn
+        int equivalentAdults = adults + (int) Math.ceil(children / 2.0);
+        if (room.getCapacity() != null && equivalentAdults > room.getCapacity()) {
+            throw new IllegalArgumentException("Số khách quy đổi (" + equivalentAdults + " người lớn, trong đó: " + adults + " người lớn + " + children + " trẻ em) vượt quá sức chứa phòng (" + room.getCapacity() + ")");
+        }
 
         // ✅ Chỉ block khi có cọc / confirmed:
         // -> Tại thời điểm tạo, nếu đã tồn tại booking khác (cùng phòng, overlap)
@@ -72,12 +84,20 @@ public class BookingServiceImpl implements BookingService {
         b.setRoom(room);
         b.setCheckIn(in);
         b.setCheckOut(out);
+        b.setAdults(adults);
+        b.setChildren(children);
         b.setTotalPrice(total);
         b.setDepositAmount(deposit);
         b.setPaymentState("unpaid");
         b.setStatus("pending");
         b.setCreatedAt(LocalDateTime.now());
         bookingRepository.save(b);
+        
+        // Generate check-in code after saving (when ID is available)
+        if (b.getId() != null) {
+            b.setCheckInCode(generateCheckInCode(b.getId()));
+            bookingRepository.save(b);
+        }
 
         // KYC snapshot
         BookingCustomerDetails k = new BookingCustomerDetails();
@@ -123,6 +143,10 @@ public class BookingServiceImpl implements BookingService {
         if (!"confirmed".equalsIgnoreCase(b.getStatus())
                 && ("deposit_paid".equals(state) || "paid_in_full".equals(state))) {
             b.setStatus("confirmed");
+            // Generate check-in code when confirmed if not already set
+            if (b.getCheckInCode() == null || b.getCheckInCode().isBlank()) {
+                b.setCheckInCode(generateCheckInCode(b.getId()));
+            }
         }
         bookingRepository.save(b);
     }
@@ -185,6 +209,11 @@ public class BookingServiceImpl implements BookingService {
     private String append(String base, String extra) {
         if (base == null || base.isBlank()) return extra;
         return base + "\n" + extra;
+    }
+
+    private String generateCheckInCode(Integer bookingId) {
+        // Format: AP + 6-digit booking ID (e.g., AP000123)
+        return String.format("AP%06d", bookingId);
     }
 
     @Override
