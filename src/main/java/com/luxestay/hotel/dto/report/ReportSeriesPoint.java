@@ -19,5 +19,3 @@ public class ReportSeriesPoint {
     private Integer cancellations;            // số hủy
     private Double occupancy;                 // công suất (%)
 }
-
-

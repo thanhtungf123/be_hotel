@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Arrays;
 
 @Service
 @RequiredArgsConstructor
@@ -389,6 +390,48 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
+    public Map<String, Long> getAmenityCounts() {
+        // Danh sách amenities có sẵn
+        List<String> amenities = Arrays.asList(
+            "Chỗ đỗ xe",
+            "Nhà hàng",
+            "Dịch vụ phòng",
+            "Lễ tân 24 giờ",
+            "Trung tâm thể dục",
+            "Phòng không hút thuốc",
+            "Xe đưa đón sân bay",
+            "Trung tâm Spa & chăm sóc sức khoẻ",
+            "Bồn tắm nóng/bể sục (Jacuzzi)",
+            "WiFi miễn phí",
+            "Trạm sạc xe điện",
+            "Lối vào cho người đi xe lăn",
+            "Ban công",
+            "Tầm nhìn biển",
+            "Tầm nhìn thành phố",
+            "Bồn tắm jacuzzi",
+            "Minibar",
+            "Điều hòa",
+            "TV",
+            "Phòng tắm riêng",
+            "Bàn làm việc",
+            "Tủ lạnh",
+            "Máy pha cà phê",
+            "Két an toàn",
+            "Điện thoại",
+            "Hệ thống âm thanh",
+            "Dịch vụ phòng 24/7",
+            "Vòi sen massage",
+            "Bồn tắm"
+        );
+
+        Map<String, Long> counts = new HashMap<>();
+        for (String amenity : amenities) {
+            Long count = roomRepository.countRoomsByAmenity(amenity);
+            counts.put(amenity, count != null ? count : 0L);
+        }
+        return counts;
+    }
+
     public void deleteImage(Long roomId, Integer imageId) {
         var img = roomImageRepository.findById(imageId)
                 .orElseThrow(() -> new IllegalArgumentException("Image not found"));

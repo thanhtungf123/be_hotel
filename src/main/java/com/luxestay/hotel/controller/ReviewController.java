@@ -48,5 +48,10 @@ public class ReviewController {
             @PathVariable("roomId") Integer roomId) {
         return ResponseEntity.ok(reviewService.getRoomRating(roomId));
     }
-}
 
+    @GetMapping("/featured")
+    public ResponseEntity<List<ReviewDTO>> getFeaturedReviews(
+            @RequestParam(value = "limit", required = false, defaultValue = "6") Integer limit) {
+        return ResponseEntity.ok(reviewService.getFeaturedReviews(limit));
+    }
+}

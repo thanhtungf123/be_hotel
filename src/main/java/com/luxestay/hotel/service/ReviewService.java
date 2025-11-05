@@ -45,10 +45,13 @@ public class ReviewService {
             throw new IllegalStateException("You have already reviewed this booking");
         }
 
-        // Check booking is completed/checked_out (can only review after stay)
+        // ✅ Allow review after booking confirmed or stayed
         String status = booking.getStatus() != null ? booking.getStatus().toLowerCase() : "";
-        if (!status.equals("checked_out") && !status.equals("completed")) {
-            throw new IllegalStateException("You can only review after checkout or completion");
+        if (!status.equals("confirmed") &&
+            !status.equals("checked_in") &&
+            !status.equals("checked_out") &&
+            !status.equals("completed")) {
+            throw new IllegalStateException("Bạn chỉ có thể đánh giá sau khi đặt phòng thành công");
         }
 
         // Create review
@@ -57,10 +60,8 @@ public class ReviewService {
         review.setRating(request.getRating());
         review.setComment(request.getComment() != null ? request.getComment().trim() : null);
         review.setCreatedAt(LocalDateTime.now());
-
         review = reviewRepository.save(review);
 
-        // Return DTO
         return toDTO(review);
     }
 
@@ -77,7 +78,7 @@ public class ReviewService {
         List<Object[]> histogramData = reviewRepository.getRatingHistogramByRoomId(roomId);
         Map<Integer, Integer> histogram = new HashMap<>();
         for (int i = 5; i >= 1; i--) {
-            histogram.put(i, 0); // Initialize all ratings to 0
+            histogram.put(i, 0);
         }
         for (Object[] row : histogramData) {
             Integer rating = ((Number) row[0]).intValue();
@@ -90,6 +91,16 @@ public class ReviewService {
                 .totalReviews(totalReviews != null ? totalReviews.intValue() : 0)
                 .ratingHistogram(histogram)
                 .build();
+    }
+
+    // ✅ Featured reviews
+    public List<ReviewDTO> getFeaturedReviews(Integer limit) {
+        List<ReviewEntity> reviews = reviewRepository.findFeaturedReviews();
+        int maxLimit = limit != null && limit > 0 ? limit : 6;
+        return reviews.stream()
+                .limit(maxLimit)
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
     private ReviewDTO toDTO(ReviewEntity review) {
@@ -110,4 +121,3 @@ public class ReviewService {
                 .build();
     }
 }
-

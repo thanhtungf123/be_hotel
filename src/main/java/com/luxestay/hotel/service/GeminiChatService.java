@@ -20,7 +20,7 @@ public class GeminiChatService {
     @Value("${gemini.api.key:AIzaSyCXQ00SlM_SjrHCbJ7MQxFYQmOGG78UWUA}")
     private String geminiApiKey;
 
-    private static final String GEMINI_API_URL = 
+    private static final String GEMINI_API_URL =
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
     public GeminiChatService() {
@@ -30,29 +30,22 @@ public class GeminiChatService {
 
     public String chat(String userMessage) {
         try {
-            // Debug: Log API key và URL
             System.out.println("=== Gemini Chat Debug ===");
             System.out.println("API Key (first 10 chars): " + (geminiApiKey != null ? geminiApiKey.substring(0, Math.min(10, geminiApiKey.length())) : "NULL"));
             System.out.println("API URL: " + GEMINI_API_URL);
-            
-            // Create request body with proper structure
+
             Map<String, Object> requestBody = new HashMap<>();
-            
-            // Create parts list
             List<Map<String, Object>> partsList = new ArrayList<>();
             Map<String, Object> partMap = new HashMap<>();
             partMap.put("text", buildPrompt(userMessage));
             partsList.add(partMap);
-            
-            // Create contents list
+
             List<Map<String, Object>> contentsList = new ArrayList<>();
             Map<String, Object> contentMap = new HashMap<>();
             contentMap.put("parts", partsList);
             contentsList.add(contentMap);
-            
             requestBody.put("contents", contentsList);
 
-            // Set headers - use X-goog-api-key in header
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             if (geminiApiKey != null && !geminiApiKey.trim().isEmpty()) {
@@ -63,27 +56,21 @@ public class GeminiChatService {
             }
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-
-            // Call API - key should be in header, not query param
             System.out.println("Calling Gemini API...");
-            ResponseEntity<String> response = restTemplate.exchange(
-                    GEMINI_API_URL, HttpMethod.POST, request, String.class);
+            ResponseEntity<String> response = restTemplate.exchange(GEMINI_API_URL, HttpMethod.POST, request, String.class);
 
-            // Parse response
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String responseBody = response.getBody();
-                System.out.println("Gemini API Response: " + responseBody); // Debug log
-                
+                System.out.println("Gemini API Response: " + responseBody);
+
                 JsonNode jsonNode = objectMapper.readTree(responseBody);
-                
-                // Check for errors first
                 if (jsonNode.has("error")) {
                     JsonNode error = jsonNode.get("error");
                     String errorMsg = error.has("message") ? error.get("message").asText() : "Unknown error";
                     System.err.println("Gemini API Error: " + errorMsg);
                     return "Xin lỗi, có lỗi xảy ra: " + errorMsg;
                 }
-                
+
                 JsonNode candidates = jsonNode.get("candidates");
                 if (candidates != null && candidates.isArray() && candidates.size() > 0) {
                     JsonNode firstCandidate = candidates.get(0);
@@ -94,7 +81,25 @@ public class GeminiChatService {
                             JsonNode firstPart = parts.get(0);
                             JsonNode text = firstPart.get("text");
                             if (text != null) {
-                                return text.asText();
+                                String responseText = text.asText();
+
+                                // 🔹 Tự động thêm link đặt phòng nếu có nội dung liên quan
+                                String lowerResponse = responseText.toLowerCase();
+                                boolean isBookingRelated =
+                                        lowerResponse.contains("đặt phòng") ||
+                                        lowerResponse.contains("xem phòng") ||
+                                        lowerResponse.contains("tìm phòng") ||
+                                        lowerResponse.contains("phòng nào") ||
+                                        lowerResponse.contains("giá phòng") ||
+                                        lowerResponse.contains("booking") ||
+                                        lowerResponse.contains("đặt chỗ") ||
+                                        lowerResponse.contains("reservation");
+
+                                if (isBookingRelated && !responseText.contains("[BOOKING_LINK")) {
+                                    responseText += "\n\n[BOOKING_LINK:/search]";
+                                }
+
+                                return responseText;
                             }
                         }
                     }
@@ -114,23 +119,39 @@ public class GeminiChatService {
     }
 
     private String buildPrompt(String userMessage) {
-        // System prompt để chatbot hoạt động như AI thông thường, đồng thời hỗ trợ khách sạn
+        // 🧠 Prompt chuyên biệt cho khách sạn Aurora Palace
         String systemPrompt = """
-            Bạn là một trợ lý AI thông minh và thân thiện của khách sạn Aurora Palace. 
+            Bạn là trợ lý AI chuyên về khách sạn Aurora Palace. 
             
-            Về vai trò của bạn:
-            - Trước tiên, bạn là trợ lý chuyên về khách sạn: có thể trả lời các câu hỏi về phòng nghỉ, dịch vụ, đặt phòng, thanh toán, tiện nghi, giá cả, chính sách hủy.
-            - Đồng thời, bạn cũng là một AI thông thường: có thể trả lời các câu hỏi về nhiều chủ đề khác nhau như kiến thức tổng quát, giải thích khái niệm, đưa ra lời khuyên, giải đáp thắc mắc, v.v.
+            Vai trò của bạn:
+            - Chỉ trả lời các câu hỏi liên quan đến khách sạn Aurora Palace và hệ thống quản lý khách sạn
+            - Các chủ đề bạn có thể trả lời:
+              + Thông tin về phòng nghỉ (loại phòng, giá cả, tiện nghi, sức chứa)
+              + Dịch vụ khách sạn (đặt phòng, check-in, check-out, hủy đặt phòng)
+              + Thanh toán và chính sách (cọc, thanh toán đủ, hoàn tiền)
+              + Tiện nghi và tiện ích (WiFi, bãi đỗ xe, nhà hàng, spa, gym)
+              + Đánh giá và phản hồi từ khách hàng
+              + Hướng dẫn sử dụng hệ thống đặt phòng online
+              + Câu hỏi về tài khoản, đăng nhập, đăng ký
+              + Báo cáo và thống kê (dành cho admin)
+              + Lịch sử đặt phòng và quản lý booking
             
-            Phong cách giao tiếp:
-            - Luôn trả lời một cách thân thiện, chuyên nghiệp, và hữu ích
-            - Trả lời bằng tiếng Việt một cách tự nhiên và dễ hiểu
-            - Nếu câu hỏi về khách sạn, hãy tập trung vào thông tin khách sạn
-            - Nếu câu hỏi về chủ đề khác, hãy trả lời như một AI thông thường, không bắt buộc phải liên hệ với khách sạn
-            - Luôn sẵn sàng giúp đỡ và tạo trải nghiệm tích cực cho người dùng
+            Quy tắc:
+            - Nếu câu hỏi KHÔNG liên quan đến khách sạn hoặc hệ thống quản lý khách sạn, hãy lịch sự từ chối và hướng dẫn người dùng hỏi về khách sạn
+            - Luôn trả lời bằng tiếng Việt một cách thân thiện, chuyên nghiệp
+            - Nếu không chắc chắn về thông tin, hãy đề nghị người dùng liên hệ trực tiếp với khách sạn
+            - Luôn tập trung vào việc hỗ trợ khách hàng và giải đáp thắc mắc về khách sạn
+            
+            QUAN TRỌNG - Hiển thị link đặt phòng:
+            - Khi người dùng hỏi về đặt phòng, xem phòng, hoặc có ý định đặt phòng, hãy kết thúc câu trả lời bằng dòng:
+              "[BOOKING_LINK:/search]"
+            - Điều này sẽ hiển thị nút "Đặt phòng ngay" để người dùng có thể click vào
+            - Ví dụ: "Chúng tôi có nhiều phòng đẹp với giá cả hợp lý. Bạn có muốn xem và đặt phòng không? [BOOKING_LINK:/search]"
+            
+            Ví dụ cách từ chối câu hỏi không liên quan:
+            "Xin lỗi, tôi là trợ lý chuyên về khách sạn Aurora Palace. Tôi chỉ có thể trả lời các câu hỏi về đặt phòng, dịch vụ khách sạn, tiện nghi, và các vấn đề liên quan đến hệ thống quản lý khách sạn. Bạn có câu hỏi nào về khách sạn không?"
             """;
-        
+
         return systemPrompt + "\n\nNgười dùng hỏi: " + userMessage + "\n\nHãy trả lời một cách tự nhiên và hữu ích:";
     }
 }
-

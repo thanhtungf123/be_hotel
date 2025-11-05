@@ -42,19 +42,27 @@ public class BookingServiceImpl implements BookingService {
         if (req.getCheckIn() == null || req.getCheckOut() == null)
             throw new IllegalArgumentException("Thiếu ngày nhận/trả");
 
-        LocalDate in  = LocalDate.parse(req.getCheckIn());
+        LocalDate in = LocalDate.parse(req.getCheckIn());
         LocalDate out = LocalDate.parse(req.getCheckOut());
         if (!out.isAfter(in)) throw new IllegalArgumentException("Ngày trả phải sau ngày nhận");
+
+        int adults = req.getAdults() != null ? req.getAdults() : 1;
+        int children = req.getChildren() != null ? req.getChildren() : 0;
+        if (adults < 1) throw new IllegalArgumentException("Số người lớn phải ≥ 1");
+        if (children < 0) throw new IllegalArgumentException("Số trẻ em phải ≥ 0");
 
         RoomEntity room = roomRepository.findById(req.getRoomId().intValue())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng"));
         Account acc = accountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản"));
 
-        // ✅ Chỉ block khi có cọc / confirmed:
-        // -> Tại thời điểm tạo, nếu đã tồn tại booking khác (cùng phòng, overlap)
-        //    với status ∈ {confirmed, checked_in} hoặc paymentState ∈ {deposit_paid, paid_in_full}
-        //    thì từ chối tạo.
+        int equivalentAdults = adults + (int) Math.ceil(children / 2.0);
+        if (room.getCapacity() != null && equivalentAdults > room.getCapacity()) {
+            throw new IllegalArgumentException("Số khách quy đổi (" + equivalentAdults +
+                    " người lớn, trong đó: " + adults + " người lớn + " + children +
+                    " trẻ em) vượt quá sức chứa phòng (" + room.getCapacity() + ")");
+        }
+
         boolean conflict = bookingRepository.hasActiveConflict(room.getId(), in, out);
         if (conflict) {
             throw new IllegalStateException("Phòng đã được giữ bởi booking khác (đã cọc/đã xác nhận)");
@@ -64,7 +72,7 @@ public class BookingServiceImpl implements BookingService {
         int price = room.getPricePerNight() == null ? 0 : room.getPricePerNight();
         BigDecimal total = BigDecimal.valueOf(price).multiply(BigDecimal.valueOf(nights));
 
-        int percent = (req.getDepositPercent()!=null && req.getDepositPercent()>0 && req.getDepositPercent()<100)
+        int percent = (req.getDepositPercent() != null && req.getDepositPercent() > 0 && req.getDepositPercent() < 100)
                 ? req.getDepositPercent() : DEFAULT_DEPOSIT_PERCENT;
         BigDecimal deposit = total.multiply(BigDecimal.valueOf(percent))
                 .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
@@ -74,6 +82,8 @@ public class BookingServiceImpl implements BookingService {
         b.setRoom(room);
         b.setCheckIn(in);
         b.setCheckOut(out);
+        b.setAdults(adults);
+        b.setChildren(children);
         b.setTotalPrice(total);
         b.setDepositAmount(deposit);
         b.setPaymentState("unpaid");
@@ -81,15 +91,21 @@ public class BookingServiceImpl implements BookingService {
         b.setCreatedAt(LocalDateTime.now());
         bookingRepository.save(b);
 
-        // KYC snapshot
+        if (b.getId() != null) {
+            b.setCheckInCode(generateCheckInCode(b.getId()));
+            bookingRepository.save(b);
+        }
+
         BookingCustomerDetails k = new BookingCustomerDetails();
         k.setBooking(b);
         k.setFullName(req.getFullName());
         k.setGender(req.getGender());
         k.setPhoneNumber(req.getPhoneNumber());
         k.setNationalIdNumber(req.getNationalIdNumber());
-        if (req.getDateOfBirth()!=null && !req.getDateOfBirth().isBlank()) {
-            try { k.setDateOfBirth(LocalDate.parse(req.getDateOfBirth())); } catch (Exception ignore) {}
+        if (req.getDateOfBirth() != null && !req.getDateOfBirth().isBlank()) {
+            try {
+                k.setDateOfBirth(LocalDate.parse(req.getDateOfBirth()));
+            } catch (Exception ignore) {}
         }
         k.setIdFrontUrl(req.getIdFrontUrl());
         k.setIdBackUrl(req.getIdBackUrl());
@@ -114,37 +130,38 @@ public class BookingServiceImpl implements BookingService {
         if (paid == null) paid = BigDecimal.ZERO;
 
         String state = "unpaid";
-        if (b.getTotalPrice()!=null && paid.compareTo(b.getTotalPrice()) >= 0) {
+        if (b.getTotalPrice() != null && paid.compareTo(b.getTotalPrice()) >= 0) {
             state = "paid_in_full";
-        } else if (b.getDepositAmount()!=null && paid.compareTo(b.getDepositAmount()) >= 0) {
+        } else if (b.getDepositAmount() != null && paid.compareTo(b.getDepositAmount()) >= 0) {
             state = "deposit_paid";
         }
         b.setPaymentState(state);
 
-        // Sau khi có cọc/full -> chuyển confirmed
         if (!"confirmed".equalsIgnoreCase(b.getStatus())
                 && ("deposit_paid".equals(state) || "paid_in_full".equals(state))) {
             b.setStatus("confirmed");
+            if (b.getCheckInCode() == null || b.getCheckInCode().isBlank()) {
+                b.setCheckInCode(generateCheckInCode(b.getId()));
+            }
         }
         bookingRepository.save(b);
 
-        // Generate check-in code and email notification (only once)
         if (("deposit_paid".equals(state) || "paid_in_full".equals(state))
                 && (b.getCheckInCode() == null || b.getCheckInCode().isBlank())) {
-            String code = generateCheckInCode(6);
-            b.setCheckInCode(code);
+            b.setCheckInCode(generateCheckInCode(b.getId()));
             bookingRepository.save(b);
             try {
                 String email = b.getAccount() != null ? b.getAccount().getEmail() : null;
-                String customerName = b.getCustomerDetails()!=null ? b.getCustomerDetails().getFullName() : (b.getAccount()!=null? b.getAccount().getFullName(): "Quý khách");
-                String roomName = b.getRoom()!=null ? b.getRoom().getRoomName() : "";
-                String in = b.getCheckIn()!=null ? b.getCheckIn().toString() : "";
-                String out = b.getCheckOut()!=null ? b.getCheckOut().toString() : "";
+                String customerName = b.getCustomerDetails() != null
+                        ? b.getCustomerDetails().getFullName()
+                        : (b.getAccount() != null ? b.getAccount().getFullName() : "Quý khách");
+                String roomName = b.getRoom() != null ? b.getRoom().getRoomName() : "";
+                String in = b.getCheckIn() != null ? b.getCheckIn().toString() : "";
+                String out = b.getCheckOut() != null ? b.getCheckOut().toString() : "";
                 if (email != null && !email.isBlank()) {
-                    emailService.sendBookingConfirmation(email, customerName, roomName, in, out, state, code);
+                    emailService.sendBookingConfirmation(email, customerName, roomName, in, out, state, b.getCheckInCode());
                 }
             } catch (Exception e) {
-                // log and continue
                 System.err.println("Failed to send booking confirmation email: " + e.getMessage());
             }
         }
@@ -156,7 +173,7 @@ public class BookingServiceImpl implements BookingService {
         BookingEntity b = bookingRepository.findByIdAndAccount_Id(bookingId, accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
 
-        String st = (b.getStatus()==null ? "pending" : b.getStatus()).toLowerCase();
+        String st = (b.getStatus() == null ? "pending" : b.getStatus()).toLowerCase();
         if (st.equals("cancellation_requested") || st.equals("cancel_requested"))
             throw new IllegalStateException("Bạn đã gửi yêu cầu hủy, vui lòng chờ duyệt");
         if (st.equals("cancelled"))
@@ -164,7 +181,6 @@ public class BookingServiceImpl implements BookingService {
         if (st.equals("checked_in") || st.equals("checked_out"))
             throw new IllegalStateException("Không thể hủy khi đã nhận/trả phòng");
 
-        // ✅ Chặn hủy khi đã quá hạn 24h trước 00:00 ngày check-in
         if (b.getCheckIn() != null) {
             LocalDateTime deadline = b.getCheckIn().atStartOfDay().minusHours(CANCEL_FREE_HOURS);
             if (LocalDateTime.now().isAfter(deadline)) {
@@ -196,7 +212,6 @@ public class BookingServiceImpl implements BookingService {
                 b.setCancelReason(append(b.getCancelReason(), "Staff note: " + note));
             }
         } else {
-            // từ chối: quay về confirmed
             b.setStatus("confirmed");
             if (note != null && !note.isBlank()) {
                 b.setCancelReason(append(b.getCancelReason(), "Reject: " + note));
@@ -210,12 +225,9 @@ public class BookingServiceImpl implements BookingService {
         return base + "\n" + extra;
     }
 
-    private String generateCheckInCode(int length){
-        final String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // avoid ambiguous chars
-        StringBuilder sb = new StringBuilder();
-        java.util.Random rnd = new java.util.Random();
-        for (int i=0;i<length;i++) sb.append(chars.charAt(rnd.nextInt(chars.length())));
-        return sb.toString();
+    // ✅ Dạng mã check-in theo booking ID
+    private String generateCheckInCode(Integer bookingId) {
+        return String.format("AP%06d", bookingId);
     }
 
     @Override
@@ -230,8 +242,8 @@ public class BookingServiceImpl implements BookingService {
         List<BookingSummary> items = pg.getContent().stream().map(b -> {
             BookingSummary dto = new BookingSummary();
             dto.setId(b.getId());
-            dto.setRoomId(b.getRoom()!=null? b.getRoom().getId(): null);
-            dto.setRoomName(b.getRoom()!=null? b.getRoom().getRoomName(): null);
+            dto.setRoomId(b.getRoom() != null ? b.getRoom().getId() : null);
+            dto.setRoomName(b.getRoom() != null ? b.getRoom().getRoomName() : null);
             dto.setCheckIn(b.getCheckIn());
             dto.setCheckOut(b.getCheckOut());
             dto.setTotalPrice(b.getTotalPrice());
@@ -239,7 +251,7 @@ public class BookingServiceImpl implements BookingService {
             return dto;
         }).toList();
 
-        return new PagedResponse<>(items, (int)pg.getTotalElements(), pg.getNumber(), pg.getSize());
+        return new PagedResponse<>(items, (int) pg.getTotalElements(), pg.getNumber(), pg.getSize());
     }
 
     @Override
@@ -251,7 +263,5 @@ public class BookingServiceImpl implements BookingService {
             booking.setStatus("confirmed");
             bookingRepository.save(booking);
         }
-        // Room is blocked by the booking itself
-        // The hasActiveConflict check in create() prevents double-booking
     }
 }

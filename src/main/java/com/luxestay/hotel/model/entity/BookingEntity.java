@@ -63,17 +63,23 @@ public class BookingEntity {
 
     @Column(name = "payment_reviewed_at")
     private LocalDateTime paymentReviewedAt;
-    
+
     @Column(name = "payment_reviewed_by")
     private Integer paymentReviewedBy;
-    
+
     @Column(name = "payment_note", columnDefinition = "NVARCHAR(MAX)")
     private String paymentNote;
+
+    @Column(name = "adults")
+    private Integer adults;
+
+    @Column(name = "children")
+    private Integer children;
 
     @Column(name = "check_in_code", length = 20)
     private String checkInCode;
 
-    // getters/setters
+    // === GETTERS ===
     public Integer getId() { return id; }
     public Account getAccount() { return account; }
     public RoomEntity getRoom() { return room; }
@@ -93,7 +99,10 @@ public class BookingEntity {
     public Integer getPaymentReviewedBy() { return paymentReviewedBy; }
     public String getPaymentNote() { return paymentNote; }
     public String getCheckInCode() { return checkInCode; }
+    public Integer getAdults() { return adults; }
+    public Integer getChildren() { return children; }
 
+    // === SETTERS ===
     public void setId(Integer id) { this.id = id; }
     public void setAccount(Account account) { this.account = account; }
     public void setRoom(RoomEntity room) { this.room = room; }
@@ -112,5 +121,7 @@ public class BookingEntity {
     public void setPaymentReviewedAt(LocalDateTime t) { this.paymentReviewedAt = t; }
     public void setPaymentReviewedBy(Integer id) { this.paymentReviewedBy = id; }
     public void setPaymentNote(String s) { this.paymentNote = s; }
-    public void setCheckInCode(String code) { this.checkInCode = code; }
+    public void setAdults(Integer adults) { this.adults = adults; }
+    public void setChildren(Integer children) { this.children = children; }
+    public void setCheckInCode(String checkInCode) { this.checkInCode = checkInCode; }
 }

@@ -15,5 +15,3 @@ public class ReportResponse {
     private ReportSummary summary;
     private List<ReportSeriesPoint> series;
 }
-
-
