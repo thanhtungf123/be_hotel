@@ -200,6 +200,11 @@ public class AdminController {
         return servicesService.getAll();
     }
 
+    @GetMapping("/services/{id}")
+    public Services getService(@PathVariable("id") Integer id) {
+        return servicesService.findById(id);
+    }
+
     @PostMapping("/service/create")
 //    @ResponseStatus(HttpStatus.CREATED)
     public void create(@RequestBody Services body) {
