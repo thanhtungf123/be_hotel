@@ -17,4 +17,3 @@ public class RoomRatingDTO {
     private Map<Integer, Integer> ratingHistogram; // 5->count, 4->count, ...
 }
 
-

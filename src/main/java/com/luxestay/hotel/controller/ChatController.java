@@ -31,5 +31,3 @@ public class ChatController {
         return ResponseEntity.ok(Map.of("response", response));
     }
 }
-
-

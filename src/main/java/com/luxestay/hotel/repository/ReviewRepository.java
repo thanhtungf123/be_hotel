@@ -62,7 +62,7 @@ public interface ReviewRepository extends JpaRepository<ReviewEntity, Integer> {
         """)
     Long countByRoomId(@Param("roomId") Integer roomId);
 
-    // Get featured reviews (recent reviews with rating >= 4, ordered by rating desc then date desc)
+    // ✅ Featured reviews (rating >= 4, có comment, mới nhất trước)
     @Query("""
         SELECT r FROM ReviewEntity r
         WHERE r.rating >= 4 AND r.comment IS NOT NULL AND LENGTH(TRIM(r.comment)) > 0

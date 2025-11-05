@@ -55,5 +55,3 @@ public class ReviewController {
         return ResponseEntity.ok(reviewService.getFeaturedReviews(limit));
     }
 }
-
-

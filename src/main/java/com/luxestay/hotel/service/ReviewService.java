@@ -45,13 +45,11 @@ public class ReviewService {
             throw new IllegalStateException("You have already reviewed this booking");
         }
 
-        // Check booking status - allow review after booking is confirmed (đã đặt phòng thành công)
+        // ✅ Allow review after booking confirmed or stayed
         String status = booking.getStatus() != null ? booking.getStatus().toLowerCase() : "";
-        // Allow review if booking is confirmed, checked_in, checked_out, or completed
-        // Chỉ cần đặt phòng thành công là có thể đánh giá
-        if (!status.equals("confirmed") && 
-            !status.equals("checked_in") && 
-            !status.equals("checked_out") && 
+        if (!status.equals("confirmed") &&
+            !status.equals("checked_in") &&
+            !status.equals("checked_out") &&
             !status.equals("completed")) {
             throw new IllegalStateException("Bạn chỉ có thể đánh giá sau khi đặt phòng thành công");
         }
@@ -62,10 +60,8 @@ public class ReviewService {
         review.setRating(request.getRating());
         review.setComment(request.getComment() != null ? request.getComment().trim() : null);
         review.setCreatedAt(LocalDateTime.now());
-
         review = reviewRepository.save(review);
 
-        // Return DTO
         return toDTO(review);
     }
 
@@ -82,7 +78,7 @@ public class ReviewService {
         List<Object[]> histogramData = reviewRepository.getRatingHistogramByRoomId(roomId);
         Map<Integer, Integer> histogram = new HashMap<>();
         for (int i = 5; i >= 1; i--) {
-            histogram.put(i, 0); // Initialize all ratings to 0
+            histogram.put(i, 0);
         }
         for (Object[] row : histogramData) {
             Integer rating = ((Number) row[0]).intValue();
@@ -97,6 +93,7 @@ public class ReviewService {
                 .build();
     }
 
+    // ✅ Featured reviews
     public List<ReviewDTO> getFeaturedReviews(Integer limit) {
         List<ReviewEntity> reviews = reviewRepository.findFeaturedReviews();
         int maxLimit = limit != null && limit > 0 ? limit : 6;
@@ -124,5 +121,3 @@ public class ReviewService {
                 .build();
     }
 }
-
-

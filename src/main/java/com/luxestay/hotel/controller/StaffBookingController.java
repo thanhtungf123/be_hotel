@@ -28,8 +28,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class StaffBookingController {
 
-    // Giờ check-in mặc định (dùng để tính no-show)
-    private static final int CHECKIN_HOUR = 14;
+    private static final int CHECKIN_HOUR = 14; // giờ check-in mặc định
 
     private final AuthService authService;
     private final BookingRepository bookingRepository;
@@ -44,7 +43,7 @@ public class StaffBookingController {
         }
     }
 
-    /** Walk-in booking: staff tạo booking trực tiếp tại quầy, thanh toán ngay → confirmed + room reserved */
+    /** Walk-in booking: staff tạo booking trực tiếp tại quầy */
     @PostMapping("/walk-in")
     @Transactional
     public ResponseEntity<?> createWalkInBooking(
@@ -54,7 +53,6 @@ public class StaffBookingController {
         Account staff = authService.requireAccount(token);
         ensureStaffOrAdmin(staff);
 
-        // Validate
         if (req.getRoomId() == null) throw new IllegalArgumentException("Thiếu roomId");
         if (req.getCheckIn() == null || req.getCheckOut() == null)
             throw new IllegalArgumentException("Thiếu ngày nhận/trả");
@@ -66,37 +64,30 @@ public class StaffBookingController {
         RoomEntity room = roomRepository.findById(req.getRoomId().intValue())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng"));
 
-        // Check conflict
         boolean conflict = bookingRepository.hasActiveConflict(room.getId(), in, out);
-        if (conflict) {
-            throw new IllegalStateException("Phòng đã được giữ bởi booking khác");
-        }
+        if (conflict) throw new IllegalStateException("Phòng đã được giữ bởi booking khác");
 
-        // Calculate price
         long nights = Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(in, out));
         int price = room.getPricePerNight() == null ? 0 : room.getPricePerNight();
         BigDecimal total = BigDecimal.valueOf(price).multiply(BigDecimal.valueOf(nights));
 
-        // Create booking as confirmed
         BookingEntity b = new BookingEntity();
-        b.setAccount(staff); // link to staff account
+        b.setAccount(staff);
         b.setRoom(room);
         b.setCheckIn(in);
         b.setCheckOut(out);
         b.setTotalPrice(total);
         b.setDepositAmount(BigDecimal.ZERO);
-        b.setPaymentState("paid_in_full"); // walk-in paid at counter
+        b.setPaymentState("paid_in_full");
         b.setStatus("confirmed");
         b.setCreatedAt(LocalDateTime.now());
         bookingRepository.save(b);
         
-        // Generate check-in code after saving (when ID is available)
         if (b.getId() != null) {
             b.setCheckInCode(generateCheckInCode(b.getId()));
             bookingRepository.save(b);
         }
 
-        // Save customer details
         BookingCustomerDetails k = new BookingCustomerDetails();
         k.setBooking(b);
         k.setFullName(req.getFullName());
@@ -109,9 +100,6 @@ public class StaffBookingController {
         k.setCreatedAt(LocalDateTime.now());
         bookingCustomerDetailsRepository.save(k);
 
-        // Room is blocked by the booking itself (no need to change status)
-        // The hasActiveConflict check above prevents double-booking
-
         return ResponseEntity.ok(Map.of(
                 "bookingId", b.getId(),
                 "status", "confirmed",
@@ -119,7 +107,7 @@ public class StaffBookingController {
         ));
     }
 
-    /** Lấy danh sách bookings active của 1 phòng (để hiển thị khoảng thời gian đã block) */
+    /** Lịch đặt phòng (để staff xem phòng nào đã bị giữ) */
     @GetMapping("/room/{roomId}/schedule")
     public ResponseEntity<?> getRoomSchedule(
             @RequestHeader("X-Auth-Token") String token,
@@ -129,7 +117,6 @@ public class StaffBookingController {
         ensureStaffOrAdmin(acc);
 
         List<BookingEntity> bookings = bookingRepository.findActiveBookingsByRoom(roomId);
-        
         List<Map<String, String>> schedule = bookings.stream()
                 .map(b -> Map.of(
                         "bookingId", String.valueOf(b.getId()),
@@ -143,7 +130,7 @@ public class StaffBookingController {
         return ResponseEntity.ok(Map.of("items", schedule));
     }
 
-    /** Danh sách bookings cho staff/admin, lọc theo status hoặc paymentState (tối giản) */
+    /** Danh sách bookings cho staff/admin */
     @GetMapping
     public ResponseEntity<?> list(
             @RequestHeader("X-Auth-Token") String token,
@@ -159,7 +146,6 @@ public class StaffBookingController {
         int s = size==null?20:Math.max(1, Math.min(100,size));
         Pageable pageable = PageRequest.of(p, s);
 
-        // đơn giản: lấy tất cả rồi filter trong bộ nhớ (BE hiện chưa có query page cụ thể)
         var all = bookingRepository.findAll(pageable).getContent();
         var items = all.stream()
                 .filter(b -> status==null || (b.getStatus()!=null && b.getStatus().equalsIgnoreCase(status)))
@@ -176,6 +162,7 @@ public class StaffBookingController {
                         "checkInCode", b.getCheckInCode() != null ? b.getCheckInCode() : (b.getId() != null ? generateCheckInCode(b.getId()) : null)
                 ))
                 .toList();
+
         java.util.Map<String,Object> resp = new java.util.HashMap<>();
         resp.put("items", items);
         resp.put("page", p);
@@ -184,7 +171,7 @@ public class StaffBookingController {
         return ResponseEntity.ok(resp);
     }
 
-    /** Chi tiết một booking cho staff: gồm KYC (ID images), payment state, mã check-in */
+    /** Chi tiết một booking cho staff */
     @GetMapping("/{id}")
     public ResponseEntity<?> detail(@RequestHeader("X-Auth-Token") String token,
                                     @PathVariable Integer id){
@@ -204,6 +191,7 @@ public class StaffBookingController {
         data.put("status", b.getStatus());
         data.put("paymentState", b.getPaymentState());
         data.put("checkInCode", b.getCheckInCode() != null ? b.getCheckInCode() : (b.getId() != null ? generateCheckInCode(b.getId()) : null));
+
         java.util.Map<String,Object> cust = new java.util.HashMap<>();
         cust.put("fullName", k!=null? k.getFullName(): (b.getAccount()!=null? b.getAccount().getFullName(): null));
         cust.put("phoneNumber", k!=null? k.getPhoneNumber(): null);
@@ -214,7 +202,7 @@ public class StaffBookingController {
         return ResponseEntity.ok(data);
     }
 
-    /** Check-in: chuyển booking → checked_in, room → occupied */
+    /** Check-in */
     @PostMapping("/{id}/check-in")
     public ResponseEntity<?> checkIn(@RequestHeader("X-Auth-Token") String token,
                                      @PathVariable Integer id){
@@ -239,7 +227,7 @@ public class StaffBookingController {
         return ResponseEntity.ok(Map.of("bookingId", id, "status", "checked_in"));
     }
 
-    /** Check-out: booking → checked_out, room → available */
+    /** Check-out */
     @PostMapping("/{id}/check-out")
     public ResponseEntity<?> checkOut(@RequestHeader("X-Auth-Token") String token,
                                       @PathVariable Integer id){
@@ -260,7 +248,7 @@ public class StaffBookingController {
         return ResponseEntity.ok(Map.of("bookingId", id, "status", "checked_out"));
     }
 
-    /** No-show (sau giờ check-in + 5h): booking → cancelled, room → available */
+    /** No-show */
     @PostMapping("/{id}/mark-no-show")
     public ResponseEntity<?> markNoShow(@RequestHeader("X-Auth-Token") String token,
                                         @PathVariable Integer id){
@@ -277,7 +265,6 @@ public class StaffBookingController {
             throw new IllegalStateException("Thiếu ngày check-in");
         }
 
-        // +5 giờ kể từ giờ check-in mặc định (14:00)
         LocalDateTime threshold = b.getCheckIn().atTime(CHECKIN_HOUR, 0).plusHours(5);
         if (LocalDateTime.now().isBefore(threshold)) {
             throw new IllegalStateException("Chỉ được đánh no-show sau giờ check-in + 5h");
@@ -297,7 +284,6 @@ public class StaffBookingController {
     }
 
     private String generateCheckInCode(Integer bookingId) {
-        // Format: AP + 6-digit booking ID (e.g., AP000123)
         return String.format("AP%06d", bookingId);
     }
 }
