@@ -13,10 +13,7 @@ import com.luxestay.hotel.model.Room;
 import com.luxestay.hotel.model.entity.BedLayout;
 import com.luxestay.hotel.model.entity.RoomEntity;
 import com.luxestay.hotel.model.entity.RoomImage;
-import com.luxestay.hotel.repository.BedLayoutRepository;
-import com.luxestay.hotel.repository.BookingRepository;
-import com.luxestay.hotel.repository.RoomImageRepository;
-import com.luxestay.hotel.repository.RoomRepository;
+import com.luxestay.hotel.repository.*;
 import com.luxestay.hotel.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
@@ -36,7 +33,7 @@ public class RoomServiceImpl implements RoomService {
     private final RoomImageRepository roomImageRepository;
     private final BedLayoutRepository bedLayoutRepository;
     private final BookingRepository bookingRepository;
-
+    private final ReviewRepository reviewRepository;
     @Override
     public List<Room> listRooms() {
         // Chỉ hiển thị phòng available và visible cho trang chủ
@@ -547,7 +544,22 @@ public class RoomServiceImpl implements RoomService {
         // For now, return empty - will implement when ReviewRepository is properly
         // integrated
         // This requires joining reviews with bookings and rooms
-        return new ArrayList<>();
+        List<Object[]> stats = reviewRepository.findAvgRatingByRoom();
+        if (stats.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<Integer> topRoomIds = stats.stream()
+                .limit(limit * 2)
+                .map(row -> ((Number) row[0]).intValue())
+                .collect(Collectors.toList());
+        if (topRoomIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return roomRepository.findAllById(topRoomIds).stream()
+                .filter(r -> "available".equals(r.getStatus())) // Chỉ gợi ý phòng available
+                .filter(r -> Boolean.TRUE.equals(r.getIsVisible())) // Chỉ phòng đang hiển thị
+                .limit(limit)
+                .collect(Collectors.toList());
     }
 
     private List<RoomEntity> getPersonalizedRooms(Integer accountId, int limit) {
