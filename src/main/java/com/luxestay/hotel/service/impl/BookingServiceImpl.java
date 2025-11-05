@@ -107,26 +107,48 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public void onPaymentCaptured(int bookingId) {
+        System.out.println("  [onPaymentCaptured] Starting for booking ID: " + bookingId);
+        
         var b = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
+        System.out.println("  [onPaymentCaptured] Fetching total paid amount...");
         BigDecimal paid = paymentRepository.sumPaidByBooking(bookingId);
         if (paid == null) paid = BigDecimal.ZERO;
+        
+        System.out.println("  [onPaymentCaptured] Total paid: " + paid);
+        System.out.println("  [onPaymentCaptured] Deposit amount: " + b.getDepositAmount());
+        System.out.println("  [onPaymentCaptured] Total price: " + b.getTotalPrice());
 
+        // ✅ FIX: Kiểm tra deposit trước, full sau (tránh nhầm lẫn)
         String state = "unpaid";
-        if (b.getTotalPrice()!=null && paid.compareTo(b.getTotalPrice()) >= 0) {
-            state = "paid_in_full";
-        } else if (b.getDepositAmount()!=null && paid.compareTo(b.getDepositAmount()) >= 0) {
-            state = "deposit_paid";
+        if (b.getDepositAmount() != null && paid.compareTo(b.getDepositAmount()) >= 0) {
+            // Nếu đã trả >= deposit amount
+            if (b.getTotalPrice() != null && paid.compareTo(b.getTotalPrice()) >= 0) {
+                // Và đã trả >= total → paid_in_full
+                state = "paid_in_full";
+                System.out.println("  [onPaymentCaptured] Determined state: paid_in_full");
+            } else {
+                // Chỉ trả đủ deposit → deposit_paid
+                state = "deposit_paid";
+                System.out.println("  [onPaymentCaptured] Determined state: deposit_paid");
+            }
+        } else {
+            System.out.println("  [onPaymentCaptured] Determined state: unpaid (not enough payment)");
         }
         b.setPaymentState(state);
 
-        // Sau khi có cọc/full -> chuyển confirmed
-        if (!"confirmed".equalsIgnoreCase(b.getStatus())
-                && ("deposit_paid".equals(state) || "paid_in_full".equals(state))) {
+        // ✅ FIX: Luôn chuyển sang confirmed khi có thanh toán thành công
+        if (("deposit_paid".equals(state) || "paid_in_full".equals(state))) {
+            System.out.println("  [onPaymentCaptured] Setting status to: confirmed");
             b.setStatus("confirmed");
+        } else {
+            System.out.println("  [onPaymentCaptured] Status remains: " + b.getStatus());
         }
+        
+        System.out.println("  [onPaymentCaptured] Saving booking...");
         bookingRepository.save(b);
+        System.out.println("  [onPaymentCaptured] Booking saved successfully!");
 
         // Generate check-in code and email notification (only once)
         if (("deposit_paid".equals(state) || "paid_in_full".equals(state))
@@ -195,14 +217,113 @@ public class BookingServiceImpl implements BookingService {
             if (note != null && !note.isBlank()) {
                 b.setCancelReason(append(b.getCancelReason(), "Staff note: " + note));
             }
+            bookingRepository.save(b);
+            
+            // ✅ Send email to customer requesting refund info
+            try {
+                String customerEmail = b.getAccount() != null ? b.getAccount().getEmail() : null;
+                String customerName = b.getCustomerDetails() != null 
+                    ? b.getCustomerDetails().getFullName() 
+                    : (b.getAccount() != null ? b.getAccount().getFullName() : "Quý khách");
+                String roomName = b.getRoom() != null ? b.getRoom().getRoomName() : "";
+                String totalPrice = b.getTotalPrice() != null 
+                    ? b.getTotalPrice().toPlainString() + " VNĐ" 
+                    : "0 VNĐ";
+                
+                if (customerEmail != null && !customerEmail.isBlank()) {
+                    emailService.sendRefundInfoRequestEmail(
+                        customerEmail, customerName, bookingId, roomName, totalPrice
+                    );
+                    System.out.println("✅ Sent refund info request email to: " + customerEmail);
+                }
+            } catch (Exception e) {
+                System.err.println("⚠️ Failed to send refund info request email: " + e.getMessage());
+                e.printStackTrace();
+            }
         } else {
             // từ chối: quay về confirmed
             b.setStatus("confirmed");
             if (note != null && !note.isBlank()) {
                 b.setCancelReason(append(b.getCancelReason(), "Reject: " + note));
             }
+            bookingRepository.save(b);
         }
+    }
+
+    @Override
+    @Transactional
+    public void submitRefundInfo(Integer bookingId, Integer accountId, RefundInfoRequest request) {
+        BookingEntity b = bookingRepository.findByIdAndAccount_Id(bookingId, accountId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
+
+        if (!"cancelled".equalsIgnoreCase(b.getStatus())) {
+            throw new IllegalStateException("Chỉ có thể cung cấp thông tin hoàn tiền cho đơn đã hủy");
+        }
+
+        if (b.getRefundSubmittedAt() != null) {
+            throw new IllegalStateException("Thông tin hoàn tiền đã được gửi trước đó");
+        }
+
+        if (request.getAccountHolder() == null || request.getAccountHolder().isBlank()) {
+            throw new IllegalArgumentException("Vui lòng nhập tên chủ tài khoản");
+        }
+        if (request.getAccountNumber() == null || request.getAccountNumber().isBlank()) {
+            throw new IllegalArgumentException("Vui lòng nhập số tài khoản");
+        }
+        if (request.getBankName() == null || request.getBankName().isBlank()) {
+            throw new IllegalArgumentException("Vui lòng nhập tên ngân hàng");
+        }
+
+        b.setRefundAccountHolder(request.getAccountHolder().trim());
+        b.setRefundAccountNumber(request.getAccountNumber().trim());
+        b.setRefundBankName(request.getBankName().trim());
+        b.setRefundSubmittedAt(LocalDateTime.now());
         bookingRepository.save(b);
+    }
+
+    @Override
+    @Transactional
+    public void confirmRefundCompleted(Integer bookingId, Integer staffId) {
+        BookingEntity b = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
+
+        if (!"cancelled".equalsIgnoreCase(b.getStatus())) {
+            throw new IllegalStateException("Chỉ có thể xác nhận hoàn tiền cho đơn đã hủy");
+        }
+
+        if (b.getRefundSubmittedAt() == null) {
+            throw new IllegalStateException("Khách hàng chưa cung cấp thông tin hoàn tiền");
+        }
+
+        if (b.getRefundCompletedAt() != null) {
+            throw new IllegalStateException("Đã xác nhận hoàn tiền trước đó");
+        }
+
+        b.setRefundCompletedAt(LocalDateTime.now());
+        b.setRefundCompletedBy(staffId);
+        bookingRepository.save(b);
+
+        // ✅ Send email to customer confirming refund completion
+        try {
+            String customerEmail = b.getAccount() != null ? b.getAccount().getEmail() : null;
+            String customerName = b.getCustomerDetails() != null 
+                ? b.getCustomerDetails().getFullName() 
+                : (b.getAccount() != null ? b.getAccount().getFullName() : "Quý khách");
+            String roomName = b.getRoom() != null ? b.getRoom().getRoomName() : "";
+            String refundAmount = b.getTotalPrice() != null 
+                ? b.getTotalPrice().toPlainString() + " VNĐ" 
+                : "0 VNĐ";
+            
+            if (customerEmail != null && !customerEmail.isBlank()) {
+                emailService.sendRefundCompletedEmail(
+                    customerEmail, customerName, bookingId, roomName, refundAmount
+                );
+                System.out.println("✅ Sent refund completed email to: " + customerEmail);
+            }
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to send refund completed email: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private String append(String base, String extra) {

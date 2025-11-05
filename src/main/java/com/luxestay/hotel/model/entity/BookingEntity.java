@@ -73,6 +73,25 @@ public class BookingEntity {
     @Column(name = "check_in_code", length = 20)
     private String checkInCode;
 
+    // Refund information fields
+    @Column(name = "refund_account_holder", length = 255)
+    private String refundAccountHolder;
+
+    @Column(name = "refund_account_number", length = 50)
+    private String refundAccountNumber;
+
+    @Column(name = "refund_bank_name", length = 255)
+    private String refundBankName;
+
+    @Column(name = "refund_submitted_at")
+    private LocalDateTime refundSubmittedAt;
+
+    @Column(name = "refund_completed_at")
+    private LocalDateTime refundCompletedAt;
+
+    @Column(name = "refund_completed_by")
+    private Integer refundCompletedBy;
+
     // getters/setters
     public Integer getId() { return id; }
     public Account getAccount() { return account; }
@@ -113,4 +132,23 @@ public class BookingEntity {
     public void setPaymentReviewedBy(Integer id) { this.paymentReviewedBy = id; }
     public void setPaymentNote(String s) { this.paymentNote = s; }
     public void setCheckInCode(String code) { this.checkInCode = code; }
+    
+    // Refund getters/setters
+    public String getRefundAccountHolder() { return refundAccountHolder; }
+    public void setRefundAccountHolder(String refundAccountHolder) { this.refundAccountHolder = refundAccountHolder; }
+    
+    public String getRefundAccountNumber() { return refundAccountNumber; }
+    public void setRefundAccountNumber(String refundAccountNumber) { this.refundAccountNumber = refundAccountNumber; }
+    
+    public String getRefundBankName() { return refundBankName; }
+    public void setRefundBankName(String refundBankName) { this.refundBankName = refundBankName; }
+    
+    public LocalDateTime getRefundSubmittedAt() { return refundSubmittedAt; }
+    public void setRefundSubmittedAt(LocalDateTime refundSubmittedAt) { this.refundSubmittedAt = refundSubmittedAt; }
+    
+    public LocalDateTime getRefundCompletedAt() { return refundCompletedAt; }
+    public void setRefundCompletedAt(LocalDateTime refundCompletedAt) { this.refundCompletedAt = refundCompletedAt; }
+    
+    public Integer getRefundCompletedBy() { return refundCompletedBy; }
+    public void setRefundCompletedBy(Integer refundCompletedBy) { this.refundCompletedBy = refundCompletedBy; }
 }

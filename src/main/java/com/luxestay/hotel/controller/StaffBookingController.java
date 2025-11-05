@@ -7,8 +7,10 @@ import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.model.entity.RoomEntity;
 import com.luxestay.hotel.repository.BookingCustomerDetailsRepository;
 import com.luxestay.hotel.repository.BookingRepository;
+import com.luxestay.hotel.repository.PaymentRepository;
 import com.luxestay.hotel.repository.RoomRepository;
 import com.luxestay.hotel.service.AuthService;
+import com.luxestay.hotel.service.BookingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +37,8 @@ public class StaffBookingController {
     private final BookingRepository bookingRepository;
     private final RoomRepository roomRepository;
     private final BookingCustomerDetailsRepository bookingCustomerDetailsRepository;
+    private final PaymentRepository paymentRepository;
+    private final BookingService bookingService;
 
     /** Chỉ cho phép role staff|admin */
     private void ensureStaffOrAdmin(Account acc){
@@ -125,13 +129,20 @@ public class StaffBookingController {
         List<BookingEntity> bookings = bookingRepository.findActiveBookingsByRoom(roomId);
         
         List<Map<String, String>> schedule = bookings.stream()
-                .map(b -> Map.of(
-                        "bookingId", String.valueOf(b.getId()),
-                        "checkIn", b.getCheckIn().toString(),
-                        "checkOut", b.getCheckOut().toString(),
-                        "status", b.getStatus() != null ? b.getStatus() : "",
-                        "paymentState", b.getPaymentState() != null ? b.getPaymentState() : ""
-                ))
+                .map(b -> {
+                    // ✅ Calculate payment state based on actual payments
+                    BigDecimal totalPaid = paymentRepository.sumPaidByBooking(b.getId());
+                    if (totalPaid == null) totalPaid = BigDecimal.ZERO;
+                    String calculatedPaymentState = calculatePaymentState(totalPaid, b.getDepositAmount(), b.getTotalPrice());
+                    
+                    return Map.of(
+                            "bookingId", String.valueOf(b.getId()),
+                            "checkIn", b.getCheckIn().toString(),
+                            "checkOut", b.getCheckOut().toString(),
+                            "status", b.getStatus() != null ? b.getStatus() : "",
+                            "paymentState", calculatedPaymentState
+                    );
+                })
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(Map.of("items", schedule));
@@ -157,18 +168,31 @@ public class StaffBookingController {
         var all = bookingRepository.findAll(pageable).getContent();
         var items = all.stream()
                 .filter(b -> status==null || (b.getStatus()!=null && b.getStatus().equalsIgnoreCase(status)))
-                .filter(b -> paymentState==null || (b.getPaymentState()!=null && b.getPaymentState().equalsIgnoreCase(paymentState)))
-                .map(b -> Map.of(
-                        "id", b.getId(),
-                        "roomName", b.getRoom()!=null? b.getRoom().getRoomName(): null,
-                        "checkIn", b.getCheckIn()!=null? b.getCheckIn().toString(): null,
-                        "checkOut", b.getCheckOut()!=null? b.getCheckOut().toString(): null,
-                        "totalPrice", b.getTotalPrice(),
-                        "status", b.getStatus(),
-                        "paymentState", b.getPaymentState(),
-                        "customerName", b.getCustomerDetails()!=null? b.getCustomerDetails().getFullName(): (b.getAccount()!=null? b.getAccount().getFullName(): null),
-                        "checkInCode", b.getCheckInCode()
-                ))
+                .map(b -> {
+                    // ✅ CRITICAL: Calculate payment state based on ACTUAL payments, not stored value
+                    // This ensures payment state is always accurate even if booking.paymentState is out of sync
+                    BigDecimal totalPaid = paymentRepository.sumPaidByBooking(b.getId());
+                    if (totalPaid == null) totalPaid = BigDecimal.ZERO;
+                    String calculatedPaymentState = calculatePaymentState(totalPaid, b.getDepositAmount(), b.getTotalPrice());
+                    
+                    // ✅ Filter by calculated payment state, not stored value
+                    if (paymentState != null && !calculatedPaymentState.equalsIgnoreCase(paymentState)) {
+                        return null; // Skip this item
+                    }
+                    
+                    java.util.Map<String,Object> item = new java.util.HashMap<>();
+                    item.put("id", b.getId());
+                    item.put("roomName", b.getRoom()!=null? b.getRoom().getRoomName(): null);
+                    item.put("checkIn", b.getCheckIn()!=null? b.getCheckIn().toString(): null);
+                    item.put("checkOut", b.getCheckOut()!=null? b.getCheckOut().toString(): null);
+                    item.put("totalPrice", b.getTotalPrice() != null ? b.getTotalPrice() : java.math.BigDecimal.ZERO);
+                    item.put("status", b.getStatus() != null ? b.getStatus() : "");
+                    item.put("paymentState", calculatedPaymentState);
+                    item.put("customerName", b.getCustomerDetails()!=null? b.getCustomerDetails().getFullName(): (b.getAccount()!=null? b.getAccount().getFullName(): null));
+                    item.put("checkInCode", b.getCheckInCode() != null ? b.getCheckInCode() : null);
+                    return item;
+                })
+                .filter(item -> item != null) // Remove filtered out items
                 .toList();
         java.util.Map<String,Object> resp = new java.util.HashMap<>();
         resp.put("items", items);
@@ -196,7 +220,14 @@ public class StaffBookingController {
         data.put("checkOut", b.getCheckOut()!=null? b.getCheckOut().toString(): null);
         data.put("totalPrice", b.getTotalPrice());
         data.put("status", b.getStatus());
-        data.put("paymentState", b.getPaymentState());
+        
+        // ✅ CRITICAL: Calculate payment state based on ACTUAL payments, not stored value
+        // This ensures payment state is always accurate even if booking.paymentState is out of sync
+        BigDecimal totalPaid = paymentRepository.sumPaidByBooking(id);
+        if (totalPaid == null) totalPaid = BigDecimal.ZERO;
+        String calculatedPaymentState = calculatePaymentState(totalPaid, b.getDepositAmount(), b.getTotalPrice());
+        data.put("paymentState", calculatedPaymentState);
+        
         data.put("checkInCode", b.getCheckInCode());
         java.util.Map<String,Object> cust = new java.util.HashMap<>();
         cust.put("fullName", k!=null? k.getFullName(): (b.getAccount()!=null? b.getAccount().getFullName(): null));
@@ -205,6 +236,19 @@ public class StaffBookingController {
         cust.put("idFrontUrl", k!=null? k.getIdFrontUrl(): null);
         cust.put("idBackUrl", k!=null? k.getIdBackUrl(): null);
         data.put("customer", cust);
+        
+        // ✅ Add refund information
+        java.util.Map<String,Object> refund = new java.util.HashMap<>();
+        refund.put("accountHolder", b.getRefundAccountHolder());
+        refund.put("accountNumber", b.getRefundAccountNumber());
+        refund.put("bankName", b.getRefundBankName());
+        refund.put("submittedAt", b.getRefundSubmittedAt() != null ? b.getRefundSubmittedAt().toString() : null);
+        refund.put("completedAt", b.getRefundCompletedAt() != null ? b.getRefundCompletedAt().toString() : null);
+        refund.put("completedBy", b.getRefundCompletedBy());
+        refund.put("hasRefundInfo", b.getRefundSubmittedAt() != null);
+        refund.put("isCompleted", b.getRefundCompletedAt() != null);
+        data.put("refund", refund);
+        
         return ResponseEntity.ok(data);
     }
 
@@ -220,6 +264,16 @@ public class StaffBookingController {
 
         if (!"confirmed".equalsIgnoreCase(b.getStatus())) {
             throw new IllegalStateException("Chỉ check-in khi booking ở trạng thái confirmed");
+        }
+
+        // ✅ Check ngày check-in: chỉ cho phép check-in khi đến ngày check-in hoặc sau đó
+        if (b.getCheckIn() == null) {
+            throw new IllegalStateException("Thiếu ngày check-in");
+        }
+        
+        LocalDate today = LocalDate.now();
+        if (today.isBefore(b.getCheckIn())) {
+            throw new IllegalStateException("Chỉ có thể check-in khi đến ngày nhận phòng hoặc sau đó");
         }
 
         b.setStatus("checked_in");
@@ -288,5 +342,41 @@ public class StaffBookingController {
             roomRepository.save(r);
         }
         return ResponseEntity.ok(Map.of("bookingId", id, "status", "cancelled"));
+    }
+    
+    /**
+     * Calculate payment state based on actual paid amount
+     * This ensures consistency even if booking.paymentState is out of sync
+     */
+    /** Staff confirm refund completed */
+    @PostMapping("/{id}/confirm-refund")
+    @Transactional
+    public ResponseEntity<?> confirmRefund(@RequestHeader("X-Auth-Token") String token,
+                                           @PathVariable Integer id) {
+        Account acc = authService.requireAccount(token);
+        ensureStaffOrAdmin(acc);
+        
+        bookingService.confirmRefundCompleted(id, acc.getId());
+        return ResponseEntity.ok(Map.of(
+                "bookingId", id,
+                "message", "Đã xác nhận hoàn tiền thành công"
+        ));
+    }
+
+    private String calculatePaymentState(BigDecimal totalPaid, BigDecimal depositAmount, BigDecimal totalPrice) {
+        if (totalPaid == null) totalPaid = BigDecimal.ZERO;
+        
+        // If paid >= total price → paid_in_full
+        if (totalPrice != null && totalPaid.compareTo(totalPrice) >= 0) {
+            return "paid_in_full";
+        }
+        
+        // If paid >= deposit amount → deposit_paid
+        if (depositAmount != null && totalPaid.compareTo(depositAmount) >= 0) {
+            return "deposit_paid";
+        }
+        
+        // Otherwise → unpaid
+        return "unpaid";
     }
 }

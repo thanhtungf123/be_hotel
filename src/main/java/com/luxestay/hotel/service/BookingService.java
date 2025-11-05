@@ -23,4 +23,10 @@ public interface BookingService {
     @Transactional
     void onPaymentCaptured(int bookingId);
 
+    // Customer submit refund info
+    void submitRefundInfo(Integer bookingId, Integer accountId, RefundInfoRequest request);
+
+    // Staff confirm refund completed
+    void confirmRefundCompleted(Integer bookingId, Integer staffId);
+
 }
