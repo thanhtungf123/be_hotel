@@ -1,10 +1,13 @@
 package com.luxestay.hotel.model.entity;
 
 import com.luxestay.hotel.model.Account;
+import com.luxestay.hotel.model.Services;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "bookings",
@@ -98,6 +101,15 @@ public class BookingEntity {
     @Column(name = "refund_completed_by")
     private Integer refundCompletedBy;
 
+    // ✅ Many-to-Many relationship with Services
+    @ManyToMany(fetch = FetchType.LAZY, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+    @JoinTable(
+        name = "booking_services",
+        joinColumns = @JoinColumn(name = "booking_id"),
+        inverseJoinColumns = @JoinColumn(name = "service_id")
+    )
+    private Set<Services> services = new HashSet<>();
+
     // === GETTERS ===
     public Integer getId() { return id; }
     public Account getAccount() { return account; }
@@ -128,6 +140,7 @@ public class BookingEntity {
     public LocalDateTime getRefundSubmittedAt() { return refundSubmittedAt; }
     public LocalDateTime getRefundCompletedAt() { return refundCompletedAt; }
     public Integer getRefundCompletedBy() { return refundCompletedBy; }
+    public Set<Services> getServices() { return services; }
 
     // === SETTERS ===
     public void setId(Integer id) { this.id = id; }
@@ -159,4 +172,5 @@ public class BookingEntity {
     public void setRefundSubmittedAt(LocalDateTime refundSubmittedAt) { this.refundSubmittedAt = refundSubmittedAt; }
     public void setRefundCompletedAt(LocalDateTime refundCompletedAt) { this.refundCompletedAt = refundCompletedAt; }
     public void setRefundCompletedBy(Integer refundCompletedBy) { this.refundCompletedBy = refundCompletedBy; }
+    public void setServices(Set<Services> services) { this.services = services; }
 }

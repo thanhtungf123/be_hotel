@@ -24,6 +24,7 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
 
   Optional<BookingEntity> findByIdAndAccount_Id(Integer id, Integer accountId);
 
+  @EntityGraph(attributePaths = {"services"})
   @Query("""
       select b from BookingEntity b
       where (:accountId is null or b.account.id = :accountId)
@@ -32,6 +33,16 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
   Page<BookingEntity> findForHistory(@Param("accountId") Integer accountId,
                                      @Param("status") String status,
                                      Pageable pageable);
+
+  // Find by ID with services eager loaded (for detail views)
+  @EntityGraph(attributePaths = {"services"})
+  @Query("select b from BookingEntity b where b.id = :id")
+  Optional<BookingEntity> findByIdWithServices(@Param("id") Integer id);
+  
+  // Override findAll to eager load services
+  @EntityGraph(attributePaths = {"services"})
+  @Override
+  Page<BookingEntity> findAll(Pageable pageable);
 
   BookingEntity findBookingById(Integer bookingId);
 

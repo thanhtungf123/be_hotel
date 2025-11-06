@@ -1,7 +1,10 @@
 package com.luxestay.hotel.controller;
 
 import com.luxestay.hotel.dto.booking.BookingRequest;
+import com.luxestay.hotel.dto.booking.BookingSummary;
 import com.luxestay.hotel.model.Account;
+import com.luxestay.hotel.model.Payment;
+import com.luxestay.hotel.model.Services;
 import com.luxestay.hotel.model.entity.BookingCustomerDetails;
 import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.model.entity.RoomEntity;
@@ -9,8 +12,10 @@ import com.luxestay.hotel.repository.BookingCustomerDetailsRepository;
 import com.luxestay.hotel.repository.BookingRepository;
 import com.luxestay.hotel.repository.PaymentRepository;
 import com.luxestay.hotel.repository.RoomRepository;
+import com.luxestay.hotel.repository.ServicesRepository;
 import com.luxestay.hotel.service.AuthService;
 import com.luxestay.hotel.service.BookingService;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +43,8 @@ public class StaffBookingController {
     private final BookingCustomerDetailsRepository bookingCustomerDetailsRepository;
     private final PaymentRepository paymentRepository;
     private final BookingService bookingService;
+    private final ServicesRepository servicesRepository;
+    private final EntityManager entityManager;
 
     /** Chỉ cho phép role staff|admin */
     private void ensureStaffOrAdmin(Account acc){
@@ -73,7 +80,22 @@ public class StaffBookingController {
 
         long nights = Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(in, out));
         int price = room.getPricePerNight() == null ? 0 : room.getPricePerNight();
-        BigDecimal total = BigDecimal.valueOf(price).multiply(BigDecimal.valueOf(nights));
+        BigDecimal roomTotal = BigDecimal.valueOf(price).multiply(BigDecimal.valueOf(nights));
+
+        // ✅ Calculate services total price
+        BigDecimal servicesTotal = BigDecimal.ZERO;
+        java.util.Set<Services> selectedServices = new java.util.HashSet<>();
+        if (req.getServiceIds() != null && !req.getServiceIds().isEmpty()) {
+            for (Integer serviceId : req.getServiceIds()) {
+                Services service = servicesRepository.findById(serviceId)
+                        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy dịch vụ với ID: " + serviceId));
+                selectedServices.add(service);
+                servicesTotal = servicesTotal.add(BigDecimal.valueOf(service.getPrice()));
+            }
+        }
+
+        // ✅ Total = room price + services price
+        BigDecimal total = roomTotal.add(servicesTotal);
 
         BookingEntity b = new BookingEntity();
         b.setAccount(staff);
@@ -85,12 +107,32 @@ public class StaffBookingController {
         b.setPaymentState("paid_in_full");
         b.setStatus("confirmed");
         b.setCreatedAt(LocalDateTime.now());
+        
+        // ✅ Set services
+        if (!selectedServices.isEmpty()) {
+            b.setServices(selectedServices);
+        }
+        
         bookingRepository.save(b);
+        entityManager.flush(); // Ensure booking ID is generated
 
+        // Generate check-in code
         if (b.getId() != null) {
             b.setCheckInCode(generateCheckInCode(b.getId()));
             bookingRepository.save(b);
         }
+
+        // Create payment record for walk-in booking (cash payment)
+        Payment payment = Payment.builder()
+                .booking(b)
+                .amount(total)
+                .paymentMethod("cash")
+                .paymentDate(LocalDateTime.now())
+                .status("completed")
+                .transactionId("WALK-IN-" + b.getId())
+                .build();
+        paymentRepository.save(payment);
+        entityManager.flush(); // Ensure payment is saved
 
         BookingCustomerDetails k = new BookingCustomerDetails();
         k.setBooking(b);
@@ -107,6 +149,7 @@ public class StaffBookingController {
         return ResponseEntity.ok(Map.of(
                 "bookingId", b.getId(),
                 "status", "confirmed",
+                "paymentState", "paid_in_full",
                 "totalPrice", total.intValue()
         ));
     }
@@ -155,7 +198,9 @@ public class StaffBookingController {
         int s = size==null?20:Math.max(1, Math.min(100,size));
         Pageable pageable = PageRequest.of(p, s);
 
-        var all = bookingRepository.findAll(pageable).getContent();
+        // findAll now uses EntityGraph to eager load services
+        var allPage = bookingRepository.findAll(pageable);
+        var all = allPage.getContent();
         var items = all.stream()
                 .filter(b -> status==null || (b.getStatus()!=null && b.getStatus().equalsIgnoreCase(status)))
                 .map(b -> {
@@ -173,6 +218,22 @@ public class StaffBookingController {
                     item.put("paymentState", calculatedPaymentState);
                     item.put("customerName", b.getCustomerDetails()!=null? b.getCustomerDetails().getFullName(): (b.getAccount()!=null? b.getAccount().getFullName(): null));
                     item.put("checkInCode", b.getCheckInCode());
+                    
+                    // ✅ Add services
+                    if (b.getServices() != null && !b.getServices().isEmpty()) {
+                        List<Map<String, Object>> serviceList = b.getServices().stream()
+                            .map(service -> {
+                                Map<String, Object> svc = new java.util.HashMap<>();
+                                svc.put("id", service.getId());
+                                svc.put("name", service.getNameService());
+                                svc.put("description", service.getDescription());
+                                svc.put("price", service.getPrice());
+                                return svc;
+                            })
+                            .toList();
+                        item.put("services", serviceList);
+                    }
+                    
                     return item;
                 })
                 .filter(item -> item != null)
@@ -193,7 +254,7 @@ public class StaffBookingController {
         Account acc = authService.requireAccount(token);
         ensureStaffOrAdmin(acc);
 
-        BookingEntity b = bookingRepository.findById(id)
+        BookingEntity b = bookingRepository.findByIdWithServices(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
 
         Map<String,Object> data = new java.util.HashMap<>();
@@ -229,6 +290,21 @@ public class StaffBookingController {
         refund.put("hasRefundInfo", b.getRefundSubmittedAt()!=null);
         refund.put("isCompleted", b.getRefundCompletedAt()!=null);
         data.put("refund", refund);
+        
+        // ✅ Add services
+        if (b.getServices() != null && !b.getServices().isEmpty()) {
+            List<Map<String, Object>> serviceList = b.getServices().stream()
+                .map(service -> {
+                    Map<String, Object> svc = new java.util.HashMap<>();
+                    svc.put("id", service.getId());
+                    svc.put("name", service.getNameService());
+                    svc.put("description", service.getDescription());
+                    svc.put("price", service.getPrice());
+                    return svc;
+                })
+                .toList();
+            data.put("services", serviceList);
+        }
 
         return ResponseEntity.ok(data);
     }

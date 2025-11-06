@@ -14,6 +14,7 @@ import com.luxestay.hotel.service.AuthService;
 
 import com.luxestay.hotel.service.EmployeeService;
 import com.luxestay.hotel.service.ServicesService;
+import com.luxestay.hotel.util.AuthorizationHelper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +51,8 @@ public class AdminController {
 
     @Autowired
     private WorkShiftRepository workShiftRepository;
+    
+    private final AuthorizationHelper authHelper;
     /**
      * Guard admin theo X-Auth-Token
      */
@@ -74,31 +77,39 @@ public class AdminController {
 
     /* ---------- CRUD EMPLOYEE ---------- */
     @GetMapping("/employees/{id}")
-    public Employee get(@PathVariable("id") Integer id) {
+    public Employee get(@PathVariable("id") Integer id, HttpServletRequest request) {
+        authHelper.requireAdmin(request);
         return employeeService.get(id);
     }
 
     @PostMapping("/employees")
     @ResponseStatus(HttpStatus.CREATED)
     public Employee create(@Valid @RequestBody Employee body,
-                           @RequestParam(required = false) Integer accountId) {
+                           @RequestParam(required = false) Integer accountId,
+                           HttpServletRequest request) {
+        authHelper.requireAdmin(request);
         return employeeService.create(body, accountId);
     }
 
     @PutMapping("/employees/{id}")
-    public Employee update(@PathVariable("id") Integer id, @RequestBody Employee patch) {
+    public Employee update(@PathVariable("id") Integer id, 
+                          @RequestBody Employee patch,
+                          HttpServletRequest request) {
+        authHelper.requireAdmin(request);
         return employeeService.update(id, patch);
     }
 
     @DeleteMapping("/employees/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable("id") Integer id) {
+    public void delete(@PathVariable("id") Integer id, HttpServletRequest request) {
+        authHelper.requireAdmin(request);
         employeeService.delete(id);
     }
 
     //Get all Employee
     @GetMapping("/employees")
-    public List<Employee> getEmployees() {
+    public List<Employee> getEmployees(HttpServletRequest request) {
+        authHelper.requireAdmin(request);
         return employeeService.getAll();
     }
 
@@ -227,18 +238,24 @@ public class AdminController {
     @GetMapping("/schedules")
     public List<WorkShift> getShiftsInRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
-
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            HttpServletRequest request) {
+        // Allow both admin and staff to view schedules
+        authHelper.requireAdminOrStaff(request);
         return workShiftRepository.findByStartTimeBetween(start, end);
     }
 
     @GetMapping("/schedules/{shiftId}")
-    public WorkShift getShift(@PathVariable("shiftId") Integer id) {
+    public WorkShift getShift(@PathVariable("shiftId") Integer id, HttpServletRequest request) {
+        // Allow both admin and staff to view schedule details
+        authHelper.requireAdminOrStaff(request);
         return workShiftRepository.findById(id).get();
     }
 
     @GetMapping("/workshifts")
-    public List<WorkShift> getWorkShifts(){
+    public List<WorkShift> getWorkShifts(HttpServletRequest request){
+        // Allow both admin and staff to view all work shifts
+        authHelper.requireAdminOrStaff(request);
         return workShiftRepository.findAll();
     }
 
@@ -246,7 +263,8 @@ public class AdminController {
     // THAY ĐỔI 2: Trả về WorkShift trực tiếp và dùng @ResponseStatus.
     @PostMapping("/schedules/create")
     @ResponseStatus(HttpStatus.CREATED) // Sẽ trả về HTTP 201 (Created) khi thành công
-    public WorkShift createShift(@RequestBody WorkShift newShift) {
+    public WorkShift createShift(@RequestBody WorkShift newShift, HttpServletRequest request) {
+        authHelper.requireAdmin(request);
         if (newShift.getEmployee() == null || newShift.getEmployee().getId() == null) {
             // LƯU Ý: Không có ResponseEntity, cách duy nhất để báo lỗi
             // "Bad Request" (HTTP 400) là ném một Exception.
@@ -273,8 +291,9 @@ public class AdminController {
     @PutMapping("/schedules/{shiftId}")
     public WorkShift updateShift(
             @PathVariable int shiftId,
-            @RequestBody WorkShift updateData) {
-
+            @RequestBody WorkShift updateData,
+            HttpServletRequest request) {
+        authHelper.requireAdmin(request);
         WorkShift existingShift = workShiftRepository.findById(shiftId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ca làm việc với ID: " + shiftId));
 
@@ -300,8 +319,8 @@ public class AdminController {
     // THAY ĐỔI 4: Trả về void và dùng @ResponseStatus.
     @DeleteMapping("/schedules/{shiftId}")
     @ResponseStatus(HttpStatus.NO_CONTENT) // Sẽ trả về HTTP 204 (No Content) khi thành công
-    public void deleteShift(@PathVariable int shiftId) {
-
+    public void deleteShift(@PathVariable int shiftId, HttpServletRequest request) {
+        authHelper.requireAdmin(request);
         // LƯU Ý: Phải kiểm tra trước khi xóa
         if (!workShiftRepository.existsById(shiftId)) {
             // Ném exception để báo lỗi "Not Found"

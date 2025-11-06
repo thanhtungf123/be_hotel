@@ -3,6 +3,7 @@ package com.luxestay.hotel.service.impl;
 import com.luxestay.hotel.dto.PagedResponse;
 import com.luxestay.hotel.dto.booking.*;
 import com.luxestay.hotel.model.Account;
+import com.luxestay.hotel.model.Services;
 import com.luxestay.hotel.model.entity.BookingCustomerDetails;
 import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.model.entity.RoomEntity;
@@ -19,7 +20,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +37,7 @@ public class BookingServiceImpl implements BookingService {
     private final AccountRepository accountRepository;
     private final PaymentRepository paymentRepository;
     private final BookingCustomerDetailsRepository bookingCustomerDetailsRepository;
+    private final ServicesRepository servicesRepository;
     private final EmailService emailService;
 
     @Override
@@ -70,7 +75,22 @@ public class BookingServiceImpl implements BookingService {
 
         long nights = Math.max(1, ChronoUnit.DAYS.between(in, out));
         int price = room.getPricePerNight() == null ? 0 : room.getPricePerNight();
-        BigDecimal total = BigDecimal.valueOf(price).multiply(BigDecimal.valueOf(nights));
+        BigDecimal roomTotal = BigDecimal.valueOf(price).multiply(BigDecimal.valueOf(nights));
+
+        // ✅ Calculate services total price
+        BigDecimal servicesTotal = BigDecimal.ZERO;
+        Set<Services> selectedServices = new HashSet<>();
+        if (req.getServiceIds() != null && !req.getServiceIds().isEmpty()) {
+            for (Integer serviceId : req.getServiceIds()) {
+                Services service = servicesRepository.findById(serviceId)
+                        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy dịch vụ với ID: " + serviceId));
+                selectedServices.add(service);
+                servicesTotal = servicesTotal.add(BigDecimal.valueOf(service.getPrice()));
+            }
+        }
+
+        // ✅ Total = room price + services price
+        BigDecimal total = roomTotal.add(servicesTotal);
 
         int percent = (req.getDepositPercent() != null && req.getDepositPercent() > 0 && req.getDepositPercent() < 100)
                 ? req.getDepositPercent() : DEFAULT_DEPOSIT_PERCENT;
@@ -89,6 +109,12 @@ public class BookingServiceImpl implements BookingService {
         b.setPaymentState("unpaid");
         b.setStatus("pending");
         b.setCreatedAt(LocalDateTime.now());
+        
+        // ✅ Set services
+        if (!selectedServices.isEmpty()) {
+            b.setServices(selectedServices);
+        }
+        
         bookingRepository.save(b);
 
         if (b.getId() != null) {

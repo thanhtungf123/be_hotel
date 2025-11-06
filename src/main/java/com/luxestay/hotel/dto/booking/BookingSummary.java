@@ -3,6 +3,7 @@ package com.luxestay.hotel.dto.booking;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 public class BookingSummary {
     private Integer id;
@@ -31,6 +32,9 @@ public class BookingSummary {
     private String refundBankName;         // Tên ngân hàng
     private Boolean refundSubmitted;       // Đã gửi thông tin hoàn tiền
     private Boolean refundCompleted;       // Đã hoàn tiền
+    
+    // Services selected for this booking
+    private List<ServiceInfo> services;
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -102,4 +106,36 @@ public class BookingSummary {
     
     public Boolean getRefundCompleted() { return refundCompleted; }
     public void setRefundCompleted(Boolean refundCompleted) { this.refundCompleted = refundCompleted; }
+    
+    public List<ServiceInfo> getServices() { return services; }
+    public void setServices(List<ServiceInfo> services) { this.services = services; }
+    
+    // Inner class for service info
+    public static class ServiceInfo {
+        private Integer id;
+        private String name;
+        private String description;
+        private Double price;
+        
+        public ServiceInfo() {}
+        
+        public ServiceInfo(Integer id, String name, String description, Double price) {
+            this.id = id;
+            this.name = name;
+            this.description = description;
+            this.price = price;
+        }
+        
+        public Integer getId() { return id; }
+        public void setId(Integer id) { this.id = id; }
+        
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        
+        public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
+        
+        public Double getPrice() { return price; }
+        public void setPrice(Double price) { this.price = price; }
+    }
 }
