@@ -4,7 +4,6 @@ import com.luxestay.hotel.dto.report.ReportResponse;
 import com.luxestay.hotel.dto.report.ReportSummary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import java.math.BigDecimal;
@@ -19,21 +18,22 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ReportService {
     private final EntityManager em;
     private final com.luxestay.hotel.repository.RoomRepository roomRepository;
+
     private static class CacheEntry {
-        final com.luxestay.hotel.dto.report.ReportResponse data;
+        final ReportResponse data;
         final long expireAt;
-        CacheEntry(com.luxestay.hotel.dto.report.ReportResponse d, long t) { this.data = d; this.expireAt = t; }
+        CacheEntry(ReportResponse d, long t) { this.data = d; this.expireAt = t; }
     }
+
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
-    private static final long TTL_MS = 60_000; // 60s
+    private static final long TTL_MS = 60_000; // cache 60s
 
     public ReportResponse getOverview(LocalDate from, LocalDate to, String groupBy) {
-        if (from == null || to == null) {
+        if (from == null || to == null)
             throw new IllegalArgumentException("from/to is required (YYYY-MM-DD)");
-        }
-        if (to.isBefore(from)) {
+        if (to.isBefore(from))
             throw new IllegalArgumentException("to must be >= from");
-        }
+
         String key = (groupBy == null ? "day" : groupBy.toLowerCase()) + "|" + from + "|" + to;
         CacheEntry cached = cache.get(key);
         if (cached != null && cached.expireAt > System.currentTimeMillis()) {
@@ -41,12 +41,11 @@ public class ReportService {
         }
 
         String bucketExpr = switch (groupBy == null ? "day" : groupBy.toLowerCase()) {
-            case "week" -> "DATEADD(week, DATEDIFF(week, 0, b.check_in_date), 0)"; // week start (Sun)
+            case "week" -> "DATEADD(week, DATEDIFF(week, 0, b.check_in_date), 0)";
             case "month" -> "DATEFROMPARTS(YEAR(b.check_in_date), MONTH(b.check_in_date), 1)";
-            default -> "CAST(b.check_in_date AS date)"; // day
+            default -> "CAST(b.check_in_date AS date)";
         };
 
-        // Time series per bucket
         String sql = """
             SELECT %s AS bucket,
                    SUM(CASE WHEN b.payment_state IN ('deposit_paid','paid_in_full')
@@ -67,7 +66,6 @@ public class ReportService {
         @SuppressWarnings("unchecked")
         List<Object[]> rows = q.getResultList();
 
-        // Build series
         List<com.luxestay.hotel.dto.report.ReportSeriesPoint> series = new ArrayList<>();
         int rooms = (int) roomRepository.count();
         if (rooms <= 0) rooms = 1;
@@ -86,7 +84,8 @@ public class ReportService {
             totalBookings += bookings;
             totalCancels += cancellations;
 
-            double occupancy = rooms == 0 ? 0d : (bookings * 100.0) / rooms; // xấp xỉ
+            double occupancy = rooms == 0 ? 0d : (bookings * 100.0) / rooms;
+
             series.add(com.luxestay.hotel.dto.report.ReportSeriesPoint.builder()
                     .date(bucket)
                     .revenue(revenue)
@@ -102,7 +101,9 @@ public class ReportService {
 
         double avgOcc = 0d;
         if (!series.isEmpty()) {
-            double sum = 0d; for (var p : series) sum += (p.getOccupancy() == null ? 0d : p.getOccupancy());
+            double sum = 0d;
+            for (var p : series)
+                sum += (p.getOccupancy() == null ? 0d : p.getOccupancy());
             avgOcc = sum / series.size();
         }
 
@@ -115,10 +116,11 @@ public class ReportService {
                 .avgRevenuePerBooking(avgRevPerBooking)
                 .build();
 
-        com.luxestay.hotel.dto.report.ReportResponse resp = com.luxestay.hotel.dto.report.ReportResponse.builder()
+        ReportResponse resp = ReportResponse.builder()
                 .summary(summary)
                 .series(series)
                 .build();
+
         cache.put(key, new CacheEntry(resp, System.currentTimeMillis() + TTL_MS));
         return resp;
     }
@@ -136,5 +138,3 @@ public class ReportService {
         return Integer.parseInt(o.toString());
     }
 }
-
-

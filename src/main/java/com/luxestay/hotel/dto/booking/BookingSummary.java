@@ -10,7 +10,9 @@ public class BookingSummary {
     private String  roomName;
     private String  roomImageUrl; // ảnh chính của phòng
     private String  bedLayout;    // ví dụ: "1 giường đôi"
-    private Integer guests;       // sức chứa phòng
+    private Integer guests;       // tổng số khách (adults + children) - backward compatible
+    private Integer adults;       // số người lớn
+    private Integer children;     // số trẻ em
     private LocalDate checkIn;
     private LocalDate checkOut;
     private Long nights;          // số đêm
@@ -47,6 +49,10 @@ public class BookingSummary {
 
     public Integer getGuests() { return guests; }
     public void setGuests(Integer guests) { this.guests = guests; }
+    public Integer getAdults() { return adults; }
+    public void setAdults(Integer adults) { this.adults = adults; }
+    public Integer getChildren() { return children; }
+    public void setChildren(Integer children) { this.children = children; }
 
     public LocalDate getCheckIn() { return checkIn; }
     public void setCheckIn(LocalDate checkIn) { this.checkIn = checkIn; }

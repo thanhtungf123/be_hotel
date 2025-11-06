@@ -43,4 +43,7 @@ public interface RoomService {
     void setPrimaryImage(Long roomId, Integer imageId); // đổi ảnh chính
 
     void deleteImage(Long roomId, Integer imageId); // xoá ảnh
+
+    // Statistics
+    java.util.Map<String, Long> getAmenityCounts(); // Đếm số phòng theo từng amenities
 }

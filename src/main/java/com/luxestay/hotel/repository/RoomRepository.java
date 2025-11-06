@@ -76,4 +76,20 @@ public interface RoomRepository extends JpaRepository<RoomEntity, Integer>, JpaS
 
       // Check if room number exists (for validation)
       boolean existsByRoomNumber(String roomNumber);
+
+      /**
+       * Đếm số phòng có chứa một amenities cụ thể
+       * Chỉ đếm phòng visible và available
+       */
+      @Query("""
+            SELECT COUNT(r)
+            FROM RoomEntity r
+            WHERE r.isVisible = true
+              AND r.status = 'available'
+              AND (r.amenities IS NOT NULL)
+              AND (
+                LOWER(r.amenities) LIKE LOWER(CONCAT('%', :amenity, '%'))
+              )
+            """)
+      Long countRoomsByAmenity(@Param("amenity") String amenity);
 }

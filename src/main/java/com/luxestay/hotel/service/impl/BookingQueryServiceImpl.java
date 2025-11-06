@@ -35,7 +35,12 @@ public class BookingQueryServiceImpl implements BookingQueryService {
                 s.setRoomName(b.getRoom().getRoomName());
                 s.setRoomImageUrl(b.getRoom().getImageUrl());
                 s.setBedLayout(b.getRoom().getBedLayout() != null ? b.getRoom().getBedLayout().getLayoutName() : null);
-                s.setGuests(b.getRoom().getCapacity());
+                // Set adults và children từ booking
+                s.setAdults(b.getAdults() != null ? b.getAdults() : 1);
+                s.setChildren(b.getChildren() != null ? b.getChildren() : 0);
+                // Tính tổng guests để backward compatible
+                int totalGuests = s.getAdults() + s.getChildren();
+                s.setGuests(totalGuests > 0 ? totalGuests : (b.getRoom().getCapacity() != null ? b.getRoom().getCapacity() : 0));
                 s.setCancelReason(b.getCancelReason());
             }
             s.setCheckIn(b.getCheckIn());
@@ -84,7 +89,12 @@ public class BookingQueryServiceImpl implements BookingQueryService {
             s.setRoomName(b.getRoom().getRoomName());
             s.setRoomImageUrl(b.getRoom().getImageUrl());
             s.setBedLayout(b.getRoom().getBedLayout() != null ? b.getRoom().getBedLayout().getLayoutName() : null);
-            s.setGuests(b.getRoom().getCapacity());
+            // Set adults và children từ booking
+            s.setAdults(b.getAdults() != null ? b.getAdults() : 1);
+            s.setChildren(b.getChildren() != null ? b.getChildren() : 0);
+            // Tính tổng guests để backward compatible
+            int totalGuests = s.getAdults() + s.getChildren();
+            s.setGuests(totalGuests > 0 ? totalGuests : (b.getRoom().getCapacity() != null ? b.getRoom().getCapacity() : 0));
         }
         s.setCheckIn(b.getCheckIn());
         s.setCheckOut(b.getCheckOut());
