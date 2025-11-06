@@ -98,7 +98,7 @@ public class BookingQueryController {
                 .orElseThrow(() -> new IllegalArgumentException("Bạn cần đăng nhập"));
 
         // ✅ FIX: Dùng bookingRepository đã inject thay vì cast sai
-        var be = bookingRepository.findById(id)
+        var be = bookingRepository.findByIdWithServices(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy"));
         
         if (be.getAccount() == null || !be.getAccount().getId().equals(accountId))

@@ -1,5 +1,7 @@
 package com.luxestay.hotel.dto.booking;
 
+import java.util.List;
+
 public class BookingRequest {
     private Long roomId;
     private String checkIn;   // yyyy-MM-dd
@@ -10,6 +12,9 @@ public class BookingRequest {
 
      private String paymentChoice;    // "deposit" | "full" (optional, FE dùng để hiển thị, BE vẫn set deposit=30%)
     private Integer depositPercent;  // optional, default 30
+
+    // NEW: Services
+    private List<Integer> serviceIds;  // Danh sách ID dịch vụ đã chọn
 
     // NEW: KYC / Bank info
     private String fullName;
@@ -46,6 +51,7 @@ public class BookingRequest {
     public String getBankName() { return bankName; }
     public String getBankCode() { return bankCode; }
     public String getBankBranch() { return bankBranch; }
+    public List<Integer> getServiceIds() { return serviceIds; }
 
     public void setRoomId(Long roomId) { this.roomId = roomId; }
     public void setCheckIn(String checkIn) { this.checkIn = checkIn; }
@@ -67,4 +73,5 @@ public class BookingRequest {
     public void setBankName(String bankName) { this.bankName = bankName; }
     public void setBankCode(String bankCode) { this.bankCode = bankCode; }
     public void setBankBranch(String bankBranch) { this.bankBranch = bankBranch; }
+    public void setServiceIds(List<Integer> serviceIds) { this.serviceIds = serviceIds; }
 }

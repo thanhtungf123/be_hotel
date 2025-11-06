@@ -74,6 +74,19 @@ public class BookingQueryServiceImpl implements BookingQueryService {
             s.setRefundSubmitted(b.getRefundSubmittedAt() != null);
             s.setRefundCompleted(b.getRefundCompletedAt() != null);
             
+            // ✅ Services information
+            if (b.getServices() != null && !b.getServices().isEmpty()) {
+                List<BookingSummary.ServiceInfo> serviceInfos = b.getServices().stream()
+                    .map(service -> new BookingSummary.ServiceInfo(
+                        service.getId(),
+                        service.getNameService(),
+                        service.getDescription(),
+                        service.getPrice()
+                    ))
+                    .toList();
+                s.setServices(serviceInfos);
+            }
+            
             return s;
         }).toList();
 
@@ -119,6 +132,19 @@ public class BookingQueryServiceImpl implements BookingQueryService {
         s.setRefundBankName(b.getRefundBankName());
         s.setRefundSubmitted(b.getRefundSubmittedAt() != null);
         s.setRefundCompleted(b.getRefundCompletedAt() != null);
+        
+        // ✅ Services information
+        if (b.getServices() != null && !b.getServices().isEmpty()) {
+            List<BookingSummary.ServiceInfo> serviceInfos = b.getServices().stream()
+                .map(service -> new BookingSummary.ServiceInfo(
+                    service.getId(),
+                    service.getNameService(),
+                    service.getDescription(),
+                    service.getPrice()
+                ))
+                .toList();
+            s.setServices(serviceInfos);
+        }
         
         return s;
     }
