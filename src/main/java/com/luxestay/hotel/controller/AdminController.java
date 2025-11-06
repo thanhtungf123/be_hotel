@@ -104,6 +104,11 @@ public class AdminController {
 
 
     /* ---------- CRUD ACCOUNT ---------- */
+    @GetMapping("/employees/accounts")
+    public List<Account> getAccountsRoleCustomer() {
+        return accountService.getAllbyRoleId(1);
+    }
+
     // Get All Account
     @GetMapping("/accounts")
     public List<Account> getAccounts(HttpServletRequest request) {
