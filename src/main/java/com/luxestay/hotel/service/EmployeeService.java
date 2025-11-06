@@ -24,12 +24,14 @@ public class EmployeeService {
     private final EmployeeRepository employeeRepo;
     private final AccountRepository accountRepo;
     private final BookingRepository bookingRepo;
+    private final RoleRepository roleRepo;
 
     public Employee create(Employee e, Integer accountIdOrNull) {
         if (accountIdOrNull != null) {
             Account acc = accountRepo.findById(accountIdOrNull)
                     .orElseThrow(() -> new NoSuchElementException("Account not found: " + accountIdOrNull));
             ensureAccountNotLinked(acc.getId(), null);
+            acc.setRole(roleRepo.findById(2).orElse(null));
             e.setAccount(acc);
         }
         return employeeRepo.save(e);

@@ -45,5 +45,9 @@ public class AccountService {
         }
     }
 
+    public List<Account> getAllbyRoleId(int id) {
+        return accountRepository.findAllByRole_Id(id);
+    }
+
 
 }
