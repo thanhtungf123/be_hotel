@@ -23,6 +23,14 @@ public class BookingSummary {
     private BigDecimal depositAmount;      // số tiền cọc
     private BigDecimal amountPaid;         // đã thanh toán
     private BigDecimal amountRemaining;    // số tiền còn lại
+    private String checkInCode;           // mã check-in
+    
+    // Refund information
+    private String refundAccountHolder;    // Chủ TK ngân hàng
+    private String refundAccountNumber;    // STK ngân hàng
+    private String refundBankName;         // Tên ngân hàng
+    private Boolean refundSubmitted;       // Đã gửi thông tin hoàn tiền
+    private Boolean refundCompleted;       // Đã hoàn tiền
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -75,4 +83,23 @@ public class BookingSummary {
     
     public BigDecimal getAmountRemaining() { return amountRemaining; }
     public void setAmountRemaining(BigDecimal amountRemaining) { this.amountRemaining = amountRemaining; }
+    
+    public String getCheckInCode() { return checkInCode; }
+    public void setCheckInCode(String checkInCode) { this.checkInCode = checkInCode; }
+    
+    // Refund getters/setters
+    public String getRefundAccountHolder() { return refundAccountHolder; }
+    public void setRefundAccountHolder(String refundAccountHolder) { this.refundAccountHolder = refundAccountHolder; }
+    
+    public String getRefundAccountNumber() { return refundAccountNumber; }
+    public void setRefundAccountNumber(String refundAccountNumber) { this.refundAccountNumber = refundAccountNumber; }
+    
+    public String getRefundBankName() { return refundBankName; }
+    public void setRefundBankName(String refundBankName) { this.refundBankName = refundBankName; }
+    
+    public Boolean getRefundSubmitted() { return refundSubmitted; }
+    public void setRefundSubmitted(Boolean refundSubmitted) { this.refundSubmitted = refundSubmitted; }
+    
+    public Boolean getRefundCompleted() { return refundCompleted; }
+    public void setRefundCompleted(Boolean refundCompleted) { this.refundCompleted = refundCompleted; }
 }

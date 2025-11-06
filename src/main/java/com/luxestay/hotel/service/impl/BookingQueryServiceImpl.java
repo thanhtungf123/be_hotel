@@ -54,12 +54,26 @@ public class BookingQueryServiceImpl implements BookingQueryService {
             s.setStatus(b.getStatus());
 
             // NEW: payment summary
-            s.setPaymentState(b.getPaymentState());
             s.setDepositAmount(b.getDepositAmount());
             var paid = paymentRepository.sumPaidByBooking(b.getId());
             if (paid == null) paid = java.math.BigDecimal.ZERO;
             s.setAmountPaid(paid);
             if (b.getTotalPrice()!=null) s.setAmountRemaining(b.getTotalPrice().subtract(paid));
+            
+            // ✅ CRITICAL: Calculate payment state based on ACTUAL payments, not stored value
+            // This ensures payment state is always accurate even if syncPaymentStatus wasn't called
+            String calculatedPaymentState = calculatePaymentState(paid, b.getDepositAmount(), b.getTotalPrice());
+            s.setPaymentState(calculatedPaymentState);
+            
+            s.setCheckInCode(b.getCheckInCode());
+            
+            // Refund information
+            s.setRefundAccountHolder(b.getRefundAccountHolder());
+            s.setRefundAccountNumber(b.getRefundAccountNumber());
+            s.setRefundBankName(b.getRefundBankName());
+            s.setRefundSubmitted(b.getRefundSubmittedAt() != null);
+            s.setRefundCompleted(b.getRefundCompletedAt() != null);
+            
             return s;
         }).toList();
 
@@ -86,12 +100,47 @@ public class BookingQueryServiceImpl implements BookingQueryService {
         s.setCheckOut(b.getCheckOut());
         s.setTotalPrice(b.getTotalPrice());
         s.setStatus(b.getStatus());
-        s.setPaymentState(b.getPaymentState());
         s.setDepositAmount(b.getDepositAmount());
         var paid = paymentRepository.sumPaidByBooking(b.getId());
         if (paid == null) paid = java.math.BigDecimal.ZERO;
         s.setAmountPaid(paid);
         if (b.getTotalPrice()!=null) s.setAmountRemaining(b.getTotalPrice().subtract(paid));
+        
+        // ✅ CRITICAL: Calculate payment state based on ACTUAL payments, not stored value
+        // This ensures payment state is always accurate even if syncPaymentStatus wasn't called
+        String calculatedPaymentState = calculatePaymentState(paid, b.getDepositAmount(), b.getTotalPrice());
+        s.setPaymentState(calculatedPaymentState);
+        
+        s.setCheckInCode(b.getCheckInCode());
+        
+        // Refund information
+        s.setRefundAccountHolder(b.getRefundAccountHolder());
+        s.setRefundAccountNumber(b.getRefundAccountNumber());
+        s.setRefundBankName(b.getRefundBankName());
+        s.setRefundSubmitted(b.getRefundSubmittedAt() != null);
+        s.setRefundCompleted(b.getRefundCompletedAt() != null);
+        
         return s;
+    }
+    
+    /**
+     * Calculate payment state based on actual paid amount
+     * This ensures consistency even if booking.paymentState is out of sync
+     */
+    private String calculatePaymentState(java.math.BigDecimal totalPaid, java.math.BigDecimal depositAmount, java.math.BigDecimal totalPrice) {
+        if (totalPaid == null) totalPaid = java.math.BigDecimal.ZERO;
+        
+        // If paid >= total price → paid_in_full
+        if (totalPrice != null && totalPaid.compareTo(totalPrice) >= 0) {
+            return "paid_in_full";
+        }
+        
+        // If paid >= deposit amount → deposit_paid
+        if (depositAmount != null && totalPaid.compareTo(depositAmount) >= 0) {
+            return "deposit_paid";
+        }
+        
+        // Otherwise → unpaid
+        return "unpaid";
     }
 }

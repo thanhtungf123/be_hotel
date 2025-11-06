@@ -123,4 +123,20 @@ public class BookingController {
         bookingService.decideCancel(id, staff.getId(), Boolean.TRUE.equals(body.getApprove()), body.getNote());
         return ResponseEntity.ok(Map.of("bookingId", id));
     }
+
+    // Customer submit refund info
+    @PostMapping("/{id}/refund-info")
+    public ResponseEntity<?> submitRefundInfo(
+            @PathVariable("id") Integer id,
+            @RequestHeader(value = "X-Auth-Token", required = false) String token,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody RefundInfoRequest request
+    ) {
+        Account acc = authService.requireAccount(resolveToken(token, authorization));
+        bookingService.submitRefundInfo(id, acc.getId(), request);
+        return ResponseEntity.ok(Map.of(
+                "bookingId", id,
+                "message", "Đã gửi thông tin hoàn tiền thành công"
+        ));
+    }
 }

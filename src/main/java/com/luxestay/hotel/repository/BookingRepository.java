@@ -106,4 +106,22 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       order by b.checkIn
       """)
   List<BookingEntity> findActiveBookingsByRoom(@Param("roomId") Integer roomId);
+
+  // Lấy các cancelled bookings có refund info nhưng chưa completed
+  @Query("""
+      select b from BookingEntity b
+      where lower(b.status) = 'cancelled'
+        and b.refundSubmittedAt is not null
+        and b.refundCompletedAt is null
+      order by b.refundSubmittedAt desc, b.createdAt desc
+      """)
+  Page<BookingEntity> findRefundPendingBookings(Pageable pageable);
+
+  // Lấy các bookings có status cancel_requested hoặc cancelled
+  @Query("""
+      select b from BookingEntity b
+      where lower(b.status) in ('cancel_requested', 'cancelled')
+      order by b.createdAt desc
+      """)
+  Page<BookingEntity> findCancelRequestsAndCancelled(Pageable pageable);
 }

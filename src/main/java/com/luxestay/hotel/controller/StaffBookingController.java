@@ -7,8 +7,10 @@ import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.model.entity.RoomEntity;
 import com.luxestay.hotel.repository.BookingCustomerDetailsRepository;
 import com.luxestay.hotel.repository.BookingRepository;
+import com.luxestay.hotel.repository.PaymentRepository;
 import com.luxestay.hotel.repository.RoomRepository;
 import com.luxestay.hotel.service.AuthService;
+import com.luxestay.hotel.service.BookingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,12 +30,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class StaffBookingController {
 
-    private static final int CHECKIN_HOUR = 14; // giờ check-in mặc định
+    private static final int CHECKIN_HOUR = 14;
 
     private final AuthService authService;
     private final BookingRepository bookingRepository;
     private final RoomRepository roomRepository;
     private final BookingCustomerDetailsRepository bookingCustomerDetailsRepository;
+    private final PaymentRepository paymentRepository;
+    private final BookingService bookingService;
 
     /** Chỉ cho phép role staff|admin */
     private void ensureStaffOrAdmin(Account acc){
@@ -43,7 +47,7 @@ public class StaffBookingController {
         }
     }
 
-    /** Walk-in booking: staff tạo booking trực tiếp tại quầy */
+    /** Walk-in booking */
     @PostMapping("/walk-in")
     @Transactional
     public ResponseEntity<?> createWalkInBooking(
@@ -82,7 +86,7 @@ public class StaffBookingController {
         b.setStatus("confirmed");
         b.setCreatedAt(LocalDateTime.now());
         bookingRepository.save(b);
-        
+
         if (b.getId() != null) {
             b.setCheckInCode(generateCheckInCode(b.getId()));
             bookingRepository.save(b);
@@ -107,7 +111,7 @@ public class StaffBookingController {
         ));
     }
 
-    /** Lịch đặt phòng (để staff xem phòng nào đã bị giữ) */
+    /** Lịch đặt phòng */
     @GetMapping("/room/{roomId}/schedule")
     public ResponseEntity<?> getRoomSchedule(
             @RequestHeader("X-Auth-Token") String token,
@@ -118,19 +122,24 @@ public class StaffBookingController {
 
         List<BookingEntity> bookings = bookingRepository.findActiveBookingsByRoom(roomId);
         List<Map<String, String>> schedule = bookings.stream()
-                .map(b -> Map.of(
-                        "bookingId", String.valueOf(b.getId()),
-                        "checkIn", b.getCheckIn().toString(),
-                        "checkOut", b.getCheckOut().toString(),
-                        "status", b.getStatus() != null ? b.getStatus() : "",
-                        "paymentState", b.getPaymentState() != null ? b.getPaymentState() : ""
-                ))
+                .map(b -> {
+                    BigDecimal totalPaid = paymentRepository.sumPaidByBooking(b.getId());
+                    if (totalPaid == null) totalPaid = BigDecimal.ZERO;
+                    String calculatedPaymentState = calculatePaymentState(totalPaid, b.getDepositAmount(), b.getTotalPrice());
+                    return Map.of(
+                            "bookingId", String.valueOf(b.getId()),
+                            "checkIn", b.getCheckIn().toString(),
+                            "checkOut", b.getCheckOut().toString(),
+                            "status", b.getStatus() != null ? b.getStatus() : "",
+                            "paymentState", calculatedPaymentState
+                    );
+                })
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(Map.of("items", schedule));
     }
 
-    /** Danh sách bookings cho staff/admin */
+    /** Danh sách bookings */
     @GetMapping
     public ResponseEntity<?> list(
             @RequestHeader("X-Auth-Token") String token,
@@ -149,21 +158,27 @@ public class StaffBookingController {
         var all = bookingRepository.findAll(pageable).getContent();
         var items = all.stream()
                 .filter(b -> status==null || (b.getStatus()!=null && b.getStatus().equalsIgnoreCase(status)))
-                .filter(b -> paymentState==null || (b.getPaymentState()!=null && b.getPaymentState().equalsIgnoreCase(paymentState)))
-                .map(b -> Map.of(
-                        "id", b.getId(),
-                        "roomName", b.getRoom()!=null? b.getRoom().getRoomName(): null,
-                        "checkIn", b.getCheckIn()!=null? b.getCheckIn().toString(): null,
-                        "checkOut", b.getCheckOut()!=null? b.getCheckOut().toString(): null,
-                        "totalPrice", b.getTotalPrice(),
-                        "status", b.getStatus(),
-                        "paymentState", b.getPaymentState(),
-                        "customerName", b.getCustomerDetails()!=null? b.getCustomerDetails().getFullName(): (b.getAccount()!=null? b.getAccount().getFullName(): null),
-                        "checkInCode", b.getCheckInCode() != null ? b.getCheckInCode() : (b.getId() != null ? generateCheckInCode(b.getId()) : null)
-                ))
+                .map(b -> {
+                    BigDecimal totalPaid = paymentRepository.sumPaidByBooking(b.getId());
+                    if (totalPaid == null) totalPaid = BigDecimal.ZERO;
+                    String calculatedPaymentState = calculatePaymentState(totalPaid, b.getDepositAmount(), b.getTotalPrice());
+                    if (paymentState != null && !calculatedPaymentState.equalsIgnoreCase(paymentState)) return null;
+                    Map<String,Object> item = new java.util.HashMap<>();
+                    item.put("id", b.getId());
+                    item.put("roomName", b.getRoom()!=null? b.getRoom().getRoomName(): null);
+                    item.put("checkIn", b.getCheckIn()!=null? b.getCheckIn().toString(): null);
+                    item.put("checkOut", b.getCheckOut()!=null? b.getCheckOut().toString(): null);
+                    item.put("totalPrice", b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO);
+                    item.put("status", b.getStatus() != null ? b.getStatus() : "");
+                    item.put("paymentState", calculatedPaymentState);
+                    item.put("customerName", b.getCustomerDetails()!=null? b.getCustomerDetails().getFullName(): (b.getAccount()!=null? b.getAccount().getFullName(): null));
+                    item.put("checkInCode", b.getCheckInCode());
+                    return item;
+                })
+                .filter(item -> item != null)
                 .toList();
 
-        java.util.Map<String,Object> resp = new java.util.HashMap<>();
+        Map<String,Object> resp = new java.util.HashMap<>();
         resp.put("items", items);
         resp.put("page", p);
         resp.put("size", s);
@@ -171,7 +186,7 @@ public class StaffBookingController {
         return ResponseEntity.ok(resp);
     }
 
-    /** Chi tiết một booking cho staff */
+    /** Chi tiết booking */
     @GetMapping("/{id}")
     public ResponseEntity<?> detail(@RequestHeader("X-Auth-Token") String token,
                                     @PathVariable Integer id){
@@ -181,24 +196,40 @@ public class StaffBookingController {
         BookingEntity b = bookingRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
 
-        BookingCustomerDetails k = b.getCustomerDetails();
-        java.util.Map<String,Object> data = new java.util.HashMap<>();
+        Map<String,Object> data = new java.util.HashMap<>();
         data.put("id", b.getId());
         data.put("roomName", b.getRoom()!=null? b.getRoom().getRoomName(): null);
         data.put("checkIn", b.getCheckIn()!=null? b.getCheckIn().toString(): null);
         data.put("checkOut", b.getCheckOut()!=null? b.getCheckOut().toString(): null);
         data.put("totalPrice", b.getTotalPrice());
         data.put("status", b.getStatus());
-        data.put("paymentState", b.getPaymentState());
-        data.put("checkInCode", b.getCheckInCode() != null ? b.getCheckInCode() : (b.getId() != null ? generateCheckInCode(b.getId()) : null));
 
-        java.util.Map<String,Object> cust = new java.util.HashMap<>();
+        BigDecimal totalPaid = paymentRepository.sumPaidByBooking(id);
+        if (totalPaid == null) totalPaid = BigDecimal.ZERO;
+        String calculatedPaymentState = calculatePaymentState(totalPaid, b.getDepositAmount(), b.getTotalPrice());
+        data.put("paymentState", calculatedPaymentState);
+        data.put("checkInCode", b.getCheckInCode());
+
+        BookingCustomerDetails k = b.getCustomerDetails();
+        Map<String,Object> cust = new java.util.HashMap<>();
         cust.put("fullName", k!=null? k.getFullName(): (b.getAccount()!=null? b.getAccount().getFullName(): null));
         cust.put("phoneNumber", k!=null? k.getPhoneNumber(): null);
         cust.put("nationalIdNumber", k!=null? k.getNationalIdNumber(): null);
         cust.put("idFrontUrl", k!=null? k.getIdFrontUrl(): null);
         cust.put("idBackUrl", k!=null? k.getIdBackUrl(): null);
         data.put("customer", cust);
+
+        Map<String,Object> refund = new java.util.HashMap<>();
+        refund.put("accountHolder", b.getRefundAccountHolder());
+        refund.put("accountNumber", b.getRefundAccountNumber());
+        refund.put("bankName", b.getRefundBankName());
+        refund.put("submittedAt", b.getRefundSubmittedAt()!=null? b.getRefundSubmittedAt().toString(): null);
+        refund.put("completedAt", b.getRefundCompletedAt()!=null? b.getRefundCompletedAt().toString(): null);
+        refund.put("completedBy", b.getRefundCompletedBy());
+        refund.put("hasRefundInfo", b.getRefundSubmittedAt()!=null);
+        refund.put("isCompleted", b.getRefundCompletedAt()!=null);
+        data.put("refund", refund);
+
         return ResponseEntity.ok(data);
     }
 
@@ -214,6 +245,13 @@ public class StaffBookingController {
 
         if (!"confirmed".equalsIgnoreCase(b.getStatus())) {
             throw new IllegalStateException("Chỉ check-in khi booking ở trạng thái confirmed");
+        }
+
+        if (b.getCheckIn() == null) {
+            throw new IllegalStateException("Thiếu ngày check-in");
+        }
+        if (LocalDate.now().isBefore(b.getCheckIn())) {
+            throw new IllegalStateException("Chỉ có thể check-in khi đến ngày nhận phòng hoặc sau đó");
         }
 
         b.setStatus("checked_in");
@@ -283,6 +321,30 @@ public class StaffBookingController {
         return ResponseEntity.ok(Map.of("bookingId", id, "status", "cancelled"));
     }
 
+    /** Staff xác nhận hoàn tiền */
+    @PostMapping("/{id}/confirm-refund")
+    @Transactional
+    public ResponseEntity<?> confirmRefund(@RequestHeader("X-Auth-Token") String token,
+                                           @PathVariable Integer id) {
+        Account acc = authService.requireAccount(token);
+        ensureStaffOrAdmin(acc);
+
+        bookingService.confirmRefundCompleted(id, acc.getId());
+        return ResponseEntity.ok(Map.of(
+                "bookingId", id,
+                "message", "Đã xác nhận hoàn tiền thành công"
+        ));
+    }
+
+    /** Tính toán trạng thái thanh toán dựa theo số tiền thực tế */
+    private String calculatePaymentState(BigDecimal totalPaid, BigDecimal depositAmount, BigDecimal totalPrice) {
+        if (totalPaid == null) totalPaid = BigDecimal.ZERO;
+        if (totalPrice != null && totalPaid.compareTo(totalPrice) >= 0) return "paid_in_full";
+        if (depositAmount != null && totalPaid.compareTo(depositAmount) >= 0) return "deposit_paid";
+        return "unpaid";
+    }
+
+    /** Sinh mã check-in */
     private String generateCheckInCode(Integer bookingId) {
         return String.format("AP%06d", bookingId);
     }
