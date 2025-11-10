@@ -135,4 +135,17 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       order by b.createdAt desc
       """)
   Page<BookingEntity> findCancelRequestsAndCancelled(Pageable pageable);
+
+  // ✅ Lấy bookings của user cho một phòng có thể review
+  // (confirmed/checked_in/checked_out/completed và chưa có review)
+  @Query("""
+      select b from BookingEntity b
+      where b.account.id = :accountId
+        and b.room.id = :roomId
+        and lower(b.status) in ('confirmed', 'checked_in', 'checked_out', 'completed')
+      order by b.checkOut desc, b.createdAt desc
+      """)
+  List<BookingEntity> findReviewableBookingsByUserAndRoom(
+      @Param("accountId") Integer accountId,
+      @Param("roomId") Integer roomId);
 }
