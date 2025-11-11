@@ -13,10 +13,7 @@ import com.luxestay.hotel.model.Room;
 import com.luxestay.hotel.model.entity.BedLayout;
 import com.luxestay.hotel.model.entity.RoomEntity;
 import com.luxestay.hotel.model.entity.RoomImage;
-import com.luxestay.hotel.repository.BedLayoutRepository;
-import com.luxestay.hotel.repository.BookingRepository;
-import com.luxestay.hotel.repository.RoomImageRepository;
-import com.luxestay.hotel.repository.RoomRepository;
+import com.luxestay.hotel.repository.*;
 import com.luxestay.hotel.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
@@ -27,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Arrays;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +34,7 @@ public class RoomServiceImpl implements RoomService {
     private final RoomImageRepository roomImageRepository;
     private final BedLayoutRepository bedLayoutRepository;
     private final BookingRepository bookingRepository;
-
+    private final ReviewRepository reviewRepository;
     @Override
     public List<Room> listRooms() {
         // Chỉ hiển thị phòng available và visible cho trang chủ
@@ -392,6 +390,48 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
+    public Map<String, Long> getAmenityCounts() {
+        // Danh sách amenities có sẵn
+        List<String> amenities = Arrays.asList(
+            "Chỗ đỗ xe",
+            "Nhà hàng",
+            "Dịch vụ phòng",
+            "Lễ tân 24 giờ",
+            "Trung tâm thể dục",
+            "Phòng không hút thuốc",
+            "Xe đưa đón sân bay",
+            "Trung tâm Spa & chăm sóc sức khoẻ",
+            "Bồn tắm nóng/bể sục (Jacuzzi)",
+            "WiFi miễn phí",
+            "Trạm sạc xe điện",
+            "Lối vào cho người đi xe lăn",
+            "Ban công",
+            "Tầm nhìn biển",
+            "Tầm nhìn thành phố",
+            "Bồn tắm jacuzzi",
+            "Minibar",
+            "Điều hòa",
+            "TV",
+            "Phòng tắm riêng",
+            "Bàn làm việc",
+            "Tủ lạnh",
+            "Máy pha cà phê",
+            "Két an toàn",
+            "Điện thoại",
+            "Hệ thống âm thanh",
+            "Dịch vụ phòng 24/7",
+            "Vòi sen massage",
+            "Bồn tắm"
+        );
+
+        Map<String, Long> counts = new HashMap<>();
+        for (String amenity : amenities) {
+            Long count = roomRepository.countRoomsByAmenity(amenity);
+            counts.put(amenity, count != null ? count : 0L);
+        }
+        return counts;
+    }
+
     public void deleteImage(Long roomId, Integer imageId) {
         var img = roomImageRepository.findById(imageId)
                 .orElseThrow(() -> new IllegalArgumentException("Image not found"));
@@ -547,7 +587,22 @@ public class RoomServiceImpl implements RoomService {
         // For now, return empty - will implement when ReviewRepository is properly
         // integrated
         // This requires joining reviews with bookings and rooms
-        return new ArrayList<>();
+        List<Object[]> stats = reviewRepository.findAvgRatingByRoom();
+        if (stats.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<Integer> topRoomIds = stats.stream()
+                .limit(limit * 2)
+                .map(row -> ((Number) row[0]).intValue())
+                .collect(Collectors.toList());
+        if (topRoomIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return roomRepository.findAllById(topRoomIds).stream()
+                .filter(r -> "available".equals(r.getStatus())) // Chỉ gợi ý phòng available
+                .filter(r -> Boolean.TRUE.equals(r.getIsVisible())) // Chỉ phòng đang hiển thị
+                .limit(limit)
+                .collect(Collectors.toList());
     }
 
     private List<RoomEntity> getPersonalizedRooms(Integer accountId, int limit) {

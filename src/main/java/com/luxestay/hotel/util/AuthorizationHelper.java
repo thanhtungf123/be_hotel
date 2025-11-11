@@ -77,6 +77,34 @@ public class AuthorizationHelper {
     }
 
     /**
+     * Require admin or staff role
+     * Allows both admin and staff to access
+     */
+    public Account requireAdminOrStaff(HttpServletRequest request) {
+        String token = request.getHeader("X-Auth-Token");
+        if (token == null || token.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing X-Auth-Token header");
+        }
+
+        Optional<Integer> accountIdOpt = authService.verify(token);
+        Integer accountId = accountIdOpt.orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired token"));
+
+        Account acc = accountRepository.findById(accountId).orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account not found"));
+
+        Role role = acc.getRole();
+        String roleName = role != null ? role.getName() : null;
+
+        if (roleName == null ||
+                (!roleName.equalsIgnoreCase("admin") && !roleName.equalsIgnoreCase("staff"))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin or Staff role required");
+        }
+
+        return acc;
+    }
+
+    /**
      * Get current authenticated account (if any)
      */
     public Optional<Account> getCurrentAccount(HttpServletRequest request) {

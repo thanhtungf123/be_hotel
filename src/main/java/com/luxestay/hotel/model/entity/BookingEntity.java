@@ -1,10 +1,13 @@
 package com.luxestay.hotel.model.entity;
 
 import com.luxestay.hotel.model.Account;
+import com.luxestay.hotel.model.Services;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "bookings",
@@ -63,14 +66,51 @@ public class BookingEntity {
 
     @Column(name = "payment_reviewed_at")
     private LocalDateTime paymentReviewedAt;
-    
+
     @Column(name = "payment_reviewed_by")
     private Integer paymentReviewedBy;
-    
+
     @Column(name = "payment_note", columnDefinition = "NVARCHAR(MAX)")
     private String paymentNote;
 
-    // getters/setters
+    @Column(name = "adults")
+    private Integer adults;
+
+    @Column(name = "children")
+    private Integer children;
+
+    @Column(name = "check_in_code", length = 20)
+    private String checkInCode;
+
+    // ✅ Refund information fields (from tung-request)
+    @Column(name = "refund_account_holder", length = 255)
+    private String refundAccountHolder;
+
+    @Column(name = "refund_account_number", length = 50)
+    private String refundAccountNumber;
+
+    @Column(name = "refund_bank_name", length = 255)
+    private String refundBankName;
+
+    @Column(name = "refund_submitted_at")
+    private LocalDateTime refundSubmittedAt;
+
+    @Column(name = "refund_completed_at")
+    private LocalDateTime refundCompletedAt;
+
+    @Column(name = "refund_completed_by")
+    private Integer refundCompletedBy;
+
+    // ✅ Many-to-Many relationship with Services
+    @ManyToMany(fetch = FetchType.LAZY, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+    @JoinTable(
+        name = "booking_services",
+        joinColumns = @JoinColumn(name = "booking_id"),
+        inverseJoinColumns = @JoinColumn(name = "service_id")
+    )
+    private Set<Services> services = new HashSet<>();
+
+    // === GETTERS ===
     public Integer getId() { return id; }
     public Account getAccount() { return account; }
     public RoomEntity getRoom() { return room; }
@@ -89,7 +129,20 @@ public class BookingEntity {
     public LocalDateTime getPaymentReviewedAt() { return paymentReviewedAt; }
     public Integer getPaymentReviewedBy() { return paymentReviewedBy; }
     public String getPaymentNote() { return paymentNote; }
+    public String getCheckInCode() { return checkInCode; }
+    public Integer getAdults() { return adults; }
+    public Integer getChildren() { return children; }
 
+    // ✅ Refund getters
+    public String getRefundAccountHolder() { return refundAccountHolder; }
+    public String getRefundAccountNumber() { return refundAccountNumber; }
+    public String getRefundBankName() { return refundBankName; }
+    public LocalDateTime getRefundSubmittedAt() { return refundSubmittedAt; }
+    public LocalDateTime getRefundCompletedAt() { return refundCompletedAt; }
+    public Integer getRefundCompletedBy() { return refundCompletedBy; }
+    public Set<Services> getServices() { return services; }
+
+    // === SETTERS ===
     public void setId(Integer id) { this.id = id; }
     public void setAccount(Account account) { this.account = account; }
     public void setRoom(RoomEntity room) { this.room = room; }
@@ -108,4 +161,16 @@ public class BookingEntity {
     public void setPaymentReviewedAt(LocalDateTime t) { this.paymentReviewedAt = t; }
     public void setPaymentReviewedBy(Integer id) { this.paymentReviewedBy = id; }
     public void setPaymentNote(String s) { this.paymentNote = s; }
+    public void setAdults(Integer adults) { this.adults = adults; }
+    public void setChildren(Integer children) { this.children = children; }
+    public void setCheckInCode(String checkInCode) { this.checkInCode = checkInCode; }
+
+    // ✅ Refund setters
+    public void setRefundAccountHolder(String refundAccountHolder) { this.refundAccountHolder = refundAccountHolder; }
+    public void setRefundAccountNumber(String refundAccountNumber) { this.refundAccountNumber = refundAccountNumber; }
+    public void setRefundBankName(String refundBankName) { this.refundBankName = refundBankName; }
+    public void setRefundSubmittedAt(LocalDateTime refundSubmittedAt) { this.refundSubmittedAt = refundSubmittedAt; }
+    public void setRefundCompletedAt(LocalDateTime refundCompletedAt) { this.refundCompletedAt = refundCompletedAt; }
+    public void setRefundCompletedBy(Integer refundCompletedBy) { this.refundCompletedBy = refundCompletedBy; }
+    public void setServices(Set<Services> services) { this.services = services; }
 }

@@ -47,7 +47,8 @@ public class RoomController {
 
     @GetMapping("/admin/all")
     public List<Room> getAllRoomsForAdmin(HttpServletRequest httpRequest) {
-        authHelper.requireAdmin(httpRequest);
+        // Allow both admin and staff to view rooms
+        authHelper.requireAdminOrStaff(httpRequest);
         return roomService.listAllRoomsForAdmin();
     }
 
@@ -289,5 +290,14 @@ public class RoomController {
                 "availableFrom", availableFrom,
                 "blocked", blocked
         );
+    }
+
+    /**
+     * API lấy số lượng phòng theo từng amenities
+     * GET /api/rooms/amenities/counts
+     */
+    @GetMapping("/amenities/counts")
+    public Map<String, Long> getAmenityCounts() {
+        return roomService.getAmenityCounts();
     }
 }

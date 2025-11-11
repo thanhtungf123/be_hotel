@@ -24,6 +24,7 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
 
   Optional<BookingEntity> findByIdAndAccount_Id(Integer id, Integer accountId);
 
+  @EntityGraph(attributePaths = {"services"})
   @Query("""
       select b from BookingEntity b
       where (:accountId is null or b.account.id = :accountId)
@@ -32,6 +33,16 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
   Page<BookingEntity> findForHistory(@Param("accountId") Integer accountId,
                                      @Param("status") String status,
                                      Pageable pageable);
+
+  // Find by ID with services eager loaded (for detail views)
+  @EntityGraph(attributePaths = {"services"})
+  @Query("select b from BookingEntity b where b.id = :id")
+  Optional<BookingEntity> findByIdWithServices(@Param("id") Integer id);
+  
+  // Override findAll to eager load services
+  @EntityGraph(attributePaths = {"services"})
+  @Override
+  Page<BookingEntity> findAll(Pageable pageable);
 
   BookingEntity findBookingById(Integer bookingId);
 
@@ -106,4 +117,35 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       order by b.checkIn
       """)
   List<BookingEntity> findActiveBookingsByRoom(@Param("roomId") Integer roomId);
+
+  // Lấy các cancelled bookings có refund info nhưng chưa completed
+  @Query("""
+      select b from BookingEntity b
+      where lower(b.status) = 'cancelled'
+        and b.refundSubmittedAt is not null
+        and b.refundCompletedAt is null
+      order by b.refundSubmittedAt desc, b.createdAt desc
+      """)
+  Page<BookingEntity> findRefundPendingBookings(Pageable pageable);
+
+  // Lấy các bookings có status cancel_requested hoặc cancelled
+  @Query("""
+      select b from BookingEntity b
+      where lower(b.status) in ('cancel_requested', 'cancelled')
+      order by b.createdAt desc
+      """)
+  Page<BookingEntity> findCancelRequestsAndCancelled(Pageable pageable);
+
+  // ✅ Lấy bookings của user cho một phòng có thể review
+  // (confirmed/checked_in/checked_out/completed và chưa có review)
+  @Query("""
+      select b from BookingEntity b
+      where b.account.id = :accountId
+        and b.room.id = :roomId
+        and lower(b.status) in ('confirmed', 'checked_in', 'checked_out', 'completed')
+      order by b.checkOut desc, b.createdAt desc
+      """)
+  List<BookingEntity> findReviewableBookingsByUserAndRoom(
+      @Param("accountId") Integer accountId,
+      @Param("roomId") Integer roomId);
 }

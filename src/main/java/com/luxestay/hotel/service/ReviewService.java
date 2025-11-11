@@ -45,10 +45,13 @@ public class ReviewService {
             throw new IllegalStateException("You have already reviewed this booking");
         }
 
-        // Check booking is completed/checked_out (can only review after stay)
+        // ✅ Allow review after booking confirmed or stayed
         String status = booking.getStatus() != null ? booking.getStatus().toLowerCase() : "";
-        if (!status.equals("checked_out") && !status.equals("completed")) {
-            throw new IllegalStateException("You can only review after checkout or completion");
+        if (!status.equals("confirmed") &&
+            !status.equals("checked_in") &&
+            !status.equals("checked_out") &&
+            !status.equals("completed")) {
+            throw new IllegalStateException("Bạn chỉ có thể đánh giá sau khi đặt phòng thành công");
         }
 
         // Create review
@@ -57,39 +60,96 @@ public class ReviewService {
         review.setRating(request.getRating());
         review.setComment(request.getComment() != null ? request.getComment().trim() : null);
         review.setCreatedAt(LocalDateTime.now());
-
         review = reviewRepository.save(review);
 
-        // Return DTO
         return toDTO(review);
     }
 
     public List<ReviewDTO> getReviewsByRoom(Integer roomId) {
-        List<ReviewEntity> reviews = reviewRepository.findByRoomId(roomId);
-        return reviews.stream().map(this::toDTO).collect(Collectors.toList());
+        try {
+            List<ReviewEntity> reviews = reviewRepository.findByRoomId(roomId);
+            return reviews.stream().map(this::toDTO).collect(Collectors.toList());
+        } catch (Exception e) {
+            // Nếu bảng reviews chưa tồn tại hoặc có lỗi, trả về danh sách rỗng
+            System.err.println("Error loading reviews for room " + roomId + ": " + e.getMessage());
+            return List.of();
+        }
     }
 
     public RoomRatingDTO getRoomRating(Integer roomId) {
-        Double avgRating = reviewRepository.getAverageRatingByRoomId(roomId);
-        Long totalReviews = reviewRepository.countByRoomId(roomId);
+        try {
+            Double avgRating = reviewRepository.getAverageRatingByRoomId(roomId);
+            Long totalReviews = reviewRepository.countByRoomId(roomId);
 
-        // Build histogram
-        List<Object[]> histogramData = reviewRepository.getRatingHistogramByRoomId(roomId);
-        Map<Integer, Integer> histogram = new HashMap<>();
-        for (int i = 5; i >= 1; i--) {
-            histogram.put(i, 0); // Initialize all ratings to 0
-        }
-        for (Object[] row : histogramData) {
-            Integer rating = ((Number) row[0]).intValue();
-            Integer count = ((Number) row[1]).intValue();
-            histogram.put(rating, count);
-        }
+            // Build histogram
+            List<Object[]> histogramData = reviewRepository.getRatingHistogramByRoomId(roomId);
+            Map<Integer, Integer> histogram = new HashMap<>();
+            for (int i = 5; i >= 1; i--) {
+                histogram.put(i, 0);
+            }
+            for (Object[] row : histogramData) {
+                Integer rating = ((Number) row[0]).intValue();
+                Integer count = ((Number) row[1]).intValue();
+                histogram.put(rating, count);
+            }
 
-        return RoomRatingDTO.builder()
-                .averageRating(avgRating != null ? avgRating : 0.0)
-                .totalReviews(totalReviews != null ? totalReviews.intValue() : 0)
-                .ratingHistogram(histogram)
-                .build();
+            return RoomRatingDTO.builder()
+                    .averageRating(avgRating != null ? avgRating : 0.0)
+                    .totalReviews(totalReviews != null ? totalReviews.intValue() : 0)
+                    .ratingHistogram(histogram)
+                    .build();
+        } catch (Exception e) {
+            // Nếu bảng reviews chưa tồn tại hoặc có lỗi, trả về rating mặc định
+            System.err.println("Error loading room rating for room " + roomId + ": " + e.getMessage());
+            Map<Integer, Integer> histogram = new HashMap<>();
+            for (int i = 5; i >= 1; i--) {
+                histogram.put(i, 0);
+            }
+            return RoomRatingDTO.builder()
+                    .averageRating(0.0)
+                    .totalReviews(0)
+                    .ratingHistogram(histogram)
+                    .build();
+        }
+    }
+
+    // ✅ Featured reviews
+    public List<ReviewDTO> getFeaturedReviews(Integer limit) {
+        List<ReviewEntity> reviews = reviewRepository.findFeaturedReviews();
+        int maxLimit = limit != null && limit > 0 ? limit : 6;
+        return reviews.stream()
+                .limit(maxLimit)
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    // ✅ Get reviewable bookings for a user and room
+    public List<com.luxestay.hotel.dto.review.ReviewableBookingDTO> getReviewableBookings(Integer accountId, Integer roomId) {
+        try {
+            List<BookingEntity> bookings = bookingRepository.findReviewableBookingsByUserAndRoom(accountId, roomId);
+            
+            return bookings.stream().map(booking -> {
+                boolean hasReview = false;
+                try {
+                    hasReview = reviewRepository.existsByBooking_Id(booking.getId());
+                } catch (Exception e) {
+                    // Nếu bảng reviews chưa tồn tại, coi như chưa có review
+                    System.err.println("Error checking review existence for booking " + booking.getId() + ": " + e.getMessage());
+                }
+                return com.luxestay.hotel.dto.review.ReviewableBookingDTO.builder()
+                        .bookingId(booking.getId())
+                        .roomId(booking.getRoom().getId())
+                        .checkIn(booking.getCheckIn())
+                        .checkOut(booking.getCheckOut())
+                        .status(booking.getStatus())
+                        .hasReview(hasReview)
+                        .build();
+            }).collect(Collectors.toList());
+        } catch (Exception e) {
+            // Nếu có lỗi, trả về danh sách rỗng
+            System.err.println("Error loading reviewable bookings for user " + accountId + " and room " + roomId + ": " + e.getMessage());
+            return List.of();
+        }
     }
 
     private ReviewDTO toDTO(ReviewEntity review) {
@@ -110,4 +170,3 @@ public class ReviewService {
                 .build();
     }
 }
-

@@ -19,5 +19,3 @@ public class ReportSummary {
     private Double occupancyRate;             // công suất phòng trung bình (%)
     private BigDecimal avgRevenuePerBooking;  // doanh thu TB/booking
 }
-
-

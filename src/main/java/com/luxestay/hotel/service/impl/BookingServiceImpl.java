@@ -3,11 +3,13 @@ package com.luxestay.hotel.service.impl;
 import com.luxestay.hotel.dto.PagedResponse;
 import com.luxestay.hotel.dto.booking.*;
 import com.luxestay.hotel.model.Account;
+import com.luxestay.hotel.model.Services;
 import com.luxestay.hotel.model.entity.BookingCustomerDetails;
 import com.luxestay.hotel.model.entity.BookingEntity;
 import com.luxestay.hotel.model.entity.RoomEntity;
 import com.luxestay.hotel.repository.*;
 import com.luxestay.hotel.service.BookingService;
+import com.luxestay.hotel.service.EmailService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
@@ -18,7 +20,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +37,8 @@ public class BookingServiceImpl implements BookingService {
     private final AccountRepository accountRepository;
     private final PaymentRepository paymentRepository;
     private final BookingCustomerDetailsRepository bookingCustomerDetailsRepository;
+    private final ServicesRepository servicesRepository;
+    private final EmailService emailService;
 
     @Override
     @Transactional
@@ -40,19 +47,27 @@ public class BookingServiceImpl implements BookingService {
         if (req.getCheckIn() == null || req.getCheckOut() == null)
             throw new IllegalArgumentException("Thiếu ngày nhận/trả");
 
-        LocalDate in  = LocalDate.parse(req.getCheckIn());
+        LocalDate in = LocalDate.parse(req.getCheckIn());
         LocalDate out = LocalDate.parse(req.getCheckOut());
         if (!out.isAfter(in)) throw new IllegalArgumentException("Ngày trả phải sau ngày nhận");
+
+        int adults = req.getAdults() != null ? req.getAdults() : 1;
+        int children = req.getChildren() != null ? req.getChildren() : 0;
+        if (adults < 1) throw new IllegalArgumentException("Số người lớn phải ≥ 1");
+        if (children < 0) throw new IllegalArgumentException("Số trẻ em phải ≥ 0");
 
         RoomEntity room = roomRepository.findById(req.getRoomId().intValue())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng"));
         Account acc = accountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản"));
 
-        // ✅ Chỉ block khi có cọc / confirmed:
-        // -> Tại thời điểm tạo, nếu đã tồn tại booking khác (cùng phòng, overlap)
-        //    với status ∈ {confirmed, checked_in} hoặc paymentState ∈ {deposit_paid, paid_in_full}
-        //    thì từ chối tạo.
+        int equivalentAdults = adults + (int) Math.ceil(children / 2.0);
+        if (room.getCapacity() != null && equivalentAdults > room.getCapacity()) {
+            throw new IllegalArgumentException("Số khách quy đổi (" + equivalentAdults +
+                    " người lớn, trong đó: " + adults + " người lớn + " + children +
+                    " trẻ em) vượt quá sức chứa phòng (" + room.getCapacity() + ")");
+        }
+
         boolean conflict = bookingRepository.hasActiveConflict(room.getId(), in, out);
         if (conflict) {
             throw new IllegalStateException("Phòng đã được giữ bởi booking khác (đã cọc/đã xác nhận)");
@@ -60,9 +75,24 @@ public class BookingServiceImpl implements BookingService {
 
         long nights = Math.max(1, ChronoUnit.DAYS.between(in, out));
         int price = room.getPricePerNight() == null ? 0 : room.getPricePerNight();
-        BigDecimal total = BigDecimal.valueOf(price).multiply(BigDecimal.valueOf(nights));
+        BigDecimal roomTotal = BigDecimal.valueOf(price).multiply(BigDecimal.valueOf(nights));
 
-        int percent = (req.getDepositPercent()!=null && req.getDepositPercent()>0 && req.getDepositPercent()<100)
+        // ✅ Calculate services total price
+        BigDecimal servicesTotal = BigDecimal.ZERO;
+        Set<Services> selectedServices = new HashSet<>();
+        if (req.getServiceIds() != null && !req.getServiceIds().isEmpty()) {
+            for (Integer serviceId : req.getServiceIds()) {
+                Services service = servicesRepository.findById(serviceId)
+                        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy dịch vụ với ID: " + serviceId));
+                selectedServices.add(service);
+                servicesTotal = servicesTotal.add(BigDecimal.valueOf(service.getPrice()));
+            }
+        }
+
+        // ✅ Total = room price + services price
+        BigDecimal total = roomTotal.add(servicesTotal);
+
+        int percent = (req.getDepositPercent() != null && req.getDepositPercent() > 0 && req.getDepositPercent() < 100)
                 ? req.getDepositPercent() : DEFAULT_DEPOSIT_PERCENT;
         BigDecimal deposit = total.multiply(BigDecimal.valueOf(percent))
                 .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
@@ -72,22 +102,36 @@ public class BookingServiceImpl implements BookingService {
         b.setRoom(room);
         b.setCheckIn(in);
         b.setCheckOut(out);
+        b.setAdults(adults);
+        b.setChildren(children);
         b.setTotalPrice(total);
         b.setDepositAmount(deposit);
         b.setPaymentState("unpaid");
         b.setStatus("pending");
         b.setCreatedAt(LocalDateTime.now());
+        
+        // ✅ Set services
+        if (!selectedServices.isEmpty()) {
+            b.setServices(selectedServices);
+        }
+        
         bookingRepository.save(b);
 
-        // KYC snapshot
+        if (b.getId() != null) {
+            b.setCheckInCode(generateCheckInCode(b.getId()));
+            bookingRepository.save(b);
+        }
+
         BookingCustomerDetails k = new BookingCustomerDetails();
         k.setBooking(b);
         k.setFullName(req.getFullName());
         k.setGender(req.getGender());
         k.setPhoneNumber(req.getPhoneNumber());
         k.setNationalIdNumber(req.getNationalIdNumber());
-        if (req.getDateOfBirth()!=null && !req.getDateOfBirth().isBlank()) {
-            try { k.setDateOfBirth(LocalDate.parse(req.getDateOfBirth())); } catch (Exception ignore) {}
+        if (req.getDateOfBirth() != null && !req.getDateOfBirth().isBlank()) {
+            try {
+                k.setDateOfBirth(LocalDate.parse(req.getDateOfBirth()));
+            } catch (Exception ignore) {}
         }
         k.setIdFrontUrl(req.getIdFrontUrl());
         k.setIdBackUrl(req.getIdBackUrl());
@@ -105,26 +149,63 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public void onPaymentCaptured(int bookingId) {
+        System.out.println("  [onPaymentCaptured] Starting for booking ID: " + bookingId);
+
         var b = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new EntityNotFoundException("Booking not found: " + bookingId));
 
+        System.out.println("  [onPaymentCaptured] Fetching total paid amount...");
         BigDecimal paid = paymentRepository.sumPaidByBooking(bookingId);
         if (paid == null) paid = BigDecimal.ZERO;
 
-        String state = "unpaid";
-        if (b.getTotalPrice()!=null && paid.compareTo(b.getTotalPrice()) >= 0) {
-            state = "paid_in_full";
-        } else if (b.getDepositAmount()!=null && paid.compareTo(b.getDepositAmount()) >= 0) {
-            state = "deposit_paid";
-        }
-        b.setPaymentState(state);
+        System.out.println("  [onPaymentCaptured] Total paid: " + paid);
+        System.out.println("  [onPaymentCaptured] Deposit amount: " + b.getDepositAmount());
+        System.out.println("  [onPaymentCaptured] Total price: " + b.getTotalPrice());
 
-        // Sau khi có cọc/full -> chuyển confirmed
-        if (!"confirmed".equalsIgnoreCase(b.getStatus())
-                && ("deposit_paid".equals(state) || "paid_in_full".equals(state))) {
-            b.setStatus("confirmed");
+        String state = "unpaid";
+        if (b.getDepositAmount() != null && paid.compareTo(b.getDepositAmount()) >= 0) {
+            if (b.getTotalPrice() != null && paid.compareTo(b.getTotalPrice()) >= 0) {
+                state = "paid_in_full";
+                System.out.println("  [onPaymentCaptured] Determined state: paid_in_full");
+            } else {
+                state = "deposit_paid";
+                System.out.println("  [onPaymentCaptured] Determined state: deposit_paid");
+            }
+        } else {
+            System.out.println("  [onPaymentCaptured] Determined state: unpaid (not enough payment)");
         }
+
+        b.setPaymentState(state);
+        if ("deposit_paid".equals(state) || "paid_in_full".equals(state)) {
+            b.setStatus("confirmed");
+            if (b.getCheckInCode() == null || b.getCheckInCode().isBlank()) {
+                b.setCheckInCode(generateCheckInCode(b.getId()));
+            }
+        }
+
+        System.out.println("  [onPaymentCaptured] Saving booking...");
         bookingRepository.save(b);
+        System.out.println("  [onPaymentCaptured] Booking saved successfully!");
+
+        if (("deposit_paid".equals(state) || "paid_in_full".equals(state))
+                && (b.getCheckInCode() == null || b.getCheckInCode().isBlank())) {
+            b.setCheckInCode(generateCheckInCode(b.getId()));
+            bookingRepository.save(b);
+            try {
+                String email = b.getAccount() != null ? b.getAccount().getEmail() : null;
+                String customerName = b.getCustomerDetails() != null
+                        ? b.getCustomerDetails().getFullName()
+                        : (b.getAccount() != null ? b.getAccount().getFullName() : "Quý khách");
+                String roomName = b.getRoom() != null ? b.getRoom().getRoomName() : "";
+                String in = b.getCheckIn() != null ? b.getCheckIn().toString() : "";
+                String out = b.getCheckOut() != null ? b.getCheckOut().toString() : "";
+                if (email != null && !email.isBlank()) {
+                    emailService.sendBookingConfirmation(email, customerName, roomName, in, out, state, b.getCheckInCode());
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to send booking confirmation email: " + e.getMessage());
+            }
+        }
     }
 
     @Override
@@ -133,7 +214,7 @@ public class BookingServiceImpl implements BookingService {
         BookingEntity b = bookingRepository.findByIdAndAccount_Id(bookingId, accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
 
-        String st = (b.getStatus()==null ? "pending" : b.getStatus()).toLowerCase();
+        String st = (b.getStatus() == null ? "pending" : b.getStatus()).toLowerCase();
         if (st.equals("cancellation_requested") || st.equals("cancel_requested"))
             throw new IllegalStateException("Bạn đã gửi yêu cầu hủy, vui lòng chờ duyệt");
         if (st.equals("cancelled"))
@@ -141,7 +222,6 @@ public class BookingServiceImpl implements BookingService {
         if (st.equals("checked_in") || st.equals("checked_out"))
             throw new IllegalStateException("Không thể hủy khi đã nhận/trả phòng");
 
-        // ✅ Chặn hủy khi đã quá hạn 24h trước 00:00 ngày check-in
         if (b.getCheckIn() != null) {
             LocalDateTime deadline = b.getCheckIn().atStartOfDay().minusHours(CANCEL_FREE_HOURS);
             if (LocalDateTime.now().isAfter(deadline)) {
@@ -172,19 +252,115 @@ public class BookingServiceImpl implements BookingService {
             if (note != null && !note.isBlank()) {
                 b.setCancelReason(append(b.getCancelReason(), "Staff note: " + note));
             }
+            bookingRepository.save(b);
+
+            try {
+                String customerEmail = b.getAccount() != null ? b.getAccount().getEmail() : null;
+                String customerName = b.getCustomerDetails() != null
+                        ? b.getCustomerDetails().getFullName()
+                        : (b.getAccount() != null ? b.getAccount().getFullName() : "Quý khách");
+                String roomName = b.getRoom() != null ? b.getRoom().getRoomName() : "";
+                String totalPrice = b.getTotalPrice() != null
+                        ? b.getTotalPrice().toPlainString() + " VNĐ"
+                        : "0 VNĐ";
+
+                if (customerEmail != null && !customerEmail.isBlank()) {
+                    emailService.sendRefundInfoRequestEmail(customerEmail, customerName, bookingId, roomName, totalPrice);
+                    System.out.println("✅ Sent refund info request email to: " + customerEmail);
+                }
+            } catch (Exception e) {
+                System.err.println("⚠️ Failed to send refund info request email: " + e.getMessage());
+                e.printStackTrace();
+            }
         } else {
-            // từ chối: quay về confirmed
             b.setStatus("confirmed");
             if (note != null && !note.isBlank()) {
                 b.setCancelReason(append(b.getCancelReason(), "Reject: " + note));
             }
+            bookingRepository.save(b);
         }
+    }
+
+    @Override
+    @Transactional
+    public void submitRefundInfo(Integer bookingId, Integer accountId, RefundInfoRequest request) {
+        BookingEntity b = bookingRepository.findByIdAndAccount_Id(bookingId, accountId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
+
+        if (!"cancelled".equalsIgnoreCase(b.getStatus())) {
+            throw new IllegalStateException("Chỉ có thể cung cấp thông tin hoàn tiền cho đơn đã hủy");
+        }
+
+        if (b.getRefundSubmittedAt() != null) {
+            throw new IllegalStateException("Thông tin hoàn tiền đã được gửi trước đó");
+        }
+
+        if (request.getAccountHolder() == null || request.getAccountHolder().isBlank()) {
+            throw new IllegalArgumentException("Vui lòng nhập tên chủ tài khoản");
+        }
+        if (request.getAccountNumber() == null || request.getAccountNumber().isBlank()) {
+            throw new IllegalArgumentException("Vui lòng nhập số tài khoản");
+        }
+        if (request.getBankName() == null || request.getBankName().isBlank()) {
+            throw new IllegalArgumentException("Vui lòng nhập tên ngân hàng");
+        }
+
+        b.setRefundAccountHolder(request.getAccountHolder().trim());
+        b.setRefundAccountNumber(request.getAccountNumber().trim());
+        b.setRefundBankName(request.getBankName().trim());
+        b.setRefundSubmittedAt(LocalDateTime.now());
         bookingRepository.save(b);
+    }
+
+    @Override
+    @Transactional
+    public void confirmRefundCompleted(Integer bookingId, Integer staffId) {
+        BookingEntity b = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
+
+        if (!"cancelled".equalsIgnoreCase(b.getStatus())) {
+            throw new IllegalStateException("Chỉ có thể xác nhận hoàn tiền cho đơn đã hủy");
+        }
+
+        if (b.getRefundSubmittedAt() == null) {
+            throw new IllegalStateException("Khách hàng chưa cung cấp thông tin hoàn tiền");
+        }
+
+        if (b.getRefundCompletedAt() != null) {
+            throw new IllegalStateException("Đã xác nhận hoàn tiền trước đó");
+        }
+
+        b.setRefundCompletedAt(LocalDateTime.now());
+        b.setRefundCompletedBy(staffId);
+        bookingRepository.save(b);
+
+        try {
+            String customerEmail = b.getAccount() != null ? b.getAccount().getEmail() : null;
+            String customerName = b.getCustomerDetails() != null
+                    ? b.getCustomerDetails().getFullName()
+                    : (b.getAccount() != null ? b.getAccount().getFullName() : "Quý khách");
+            String roomName = b.getRoom() != null ? b.getRoom().getRoomName() : "";
+            String refundAmount = b.getTotalPrice() != null
+                    ? b.getTotalPrice().toPlainString() + " VNĐ"
+                    : "0 VNĐ";
+
+            if (customerEmail != null && !customerEmail.isBlank()) {
+                emailService.sendRefundCompletedEmail(customerEmail, customerName, bookingId, roomName, refundAmount);
+                System.out.println("✅ Sent refund completed email to: " + customerEmail);
+            }
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to send refund completed email: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private String append(String base, String extra) {
         if (base == null || base.isBlank()) return extra;
         return base + "\n" + extra;
+    }
+
+    private String generateCheckInCode(Integer bookingId) {
+        return String.format("AP%06d", bookingId);
     }
 
     @Override
@@ -199,8 +375,8 @@ public class BookingServiceImpl implements BookingService {
         List<BookingSummary> items = pg.getContent().stream().map(b -> {
             BookingSummary dto = new BookingSummary();
             dto.setId(b.getId());
-            dto.setRoomId(b.getRoom()!=null? b.getRoom().getId(): null);
-            dto.setRoomName(b.getRoom()!=null? b.getRoom().getRoomName(): null);
+            dto.setRoomId(b.getRoom() != null ? b.getRoom().getId() : null);
+            dto.setRoomName(b.getRoom() != null ? b.getRoom().getRoomName() : null);
             dto.setCheckIn(b.getCheckIn());
             dto.setCheckOut(b.getCheckOut());
             dto.setTotalPrice(b.getTotalPrice());
@@ -208,7 +384,7 @@ public class BookingServiceImpl implements BookingService {
             return dto;
         }).toList();
 
-        return new PagedResponse<>(items, (int)pg.getTotalElements(), pg.getNumber(), pg.getSize());
+        return new PagedResponse<>(items, (int) pg.getTotalElements(), pg.getNumber(), pg.getSize());
     }
 
     @Override
@@ -220,7 +396,5 @@ public class BookingServiceImpl implements BookingService {
             booking.setStatus("confirmed");
             bookingRepository.save(booking);
         }
-        // Room is blocked by the booking itself
-        // The hasActiveConflict check in create() prevents double-booking
     }
 }
