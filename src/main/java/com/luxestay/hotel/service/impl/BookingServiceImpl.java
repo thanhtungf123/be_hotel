@@ -53,6 +53,9 @@ public class BookingServiceImpl implements BookingService {
 
         LocalDate in = LocalDate.parse(req.getCheckIn());
         LocalDate out = LocalDate.parse(req.getCheckOut());
+        if (in.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("Ngày nhận phòng không được là ngày trong quá khứ");
+        }
         if (!out.isAfter(in)) throw new IllegalArgumentException("Ngày trả phải sau ngày nhận");
 
         int adults = req.getAdults() != null ? req.getAdults() : 1;
