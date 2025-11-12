@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 public class StaffBookingController {
 
     private static final int CHECKIN_HOUR = 14;
+    private static final int CHECKOUT_HOUR = 12;  // 12:00 PM - Giờ trả phòng
 
     private final AuthService authService;
     private final BookingRepository bookingRepository;
@@ -94,14 +95,26 @@ public class StaffBookingController {
             }
         }
 
-        // ✅ Total = room price + services price
-        BigDecimal total = roomTotal.add(servicesTotal);
+        // ✅ Calculate subtotal (room + services)
+        BigDecimal subtotal = roomTotal.add(servicesTotal);
+
+        // ✅ Calculate tax (10%) and service fee (5%)
+        BigDecimal tax = subtotal.multiply(BigDecimal.valueOf(0.10))
+                .setScale(0, java.math.RoundingMode.HALF_UP);
+        BigDecimal serviceFee = subtotal.multiply(BigDecimal.valueOf(0.05))
+                .setScale(0, java.math.RoundingMode.HALF_UP);
+
+        // ✅ Total = subtotal + tax + service fee
+        BigDecimal total = subtotal.add(tax).add(serviceFee);
 
         BookingEntity b = new BookingEntity();
         b.setAccount(staff);
         b.setRoom(room);
         b.setCheckIn(in);
         b.setCheckOut(out);
+        b.setSubtotalPrice(subtotal);
+        b.setTaxAmount(tax);
+        b.setServiceFeeAmount(serviceFee);
         b.setTotalPrice(total);
         b.setDepositAmount(BigDecimal.ZERO);
         b.setPaymentState("paid_in_full");
@@ -146,12 +159,15 @@ public class StaffBookingController {
         k.setCreatedAt(LocalDateTime.now());
         bookingCustomerDetailsRepository.save(k);
 
-        return ResponseEntity.ok(Map.of(
-                "bookingId", b.getId(),
-                "status", "confirmed",
-                "paymentState", "paid_in_full",
-                "totalPrice", total.intValue()
-        ));
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("bookingId", b.getId());
+        response.put("status", "confirmed");
+        response.put("paymentState", "paid_in_full");
+        response.put("subtotal", subtotal.intValue());
+        response.put("tax", tax.intValue());
+        response.put("serviceFee", serviceFee.intValue());
+        response.put("totalPrice", total.intValue());
+        return ResponseEntity.ok(response);
     }
 
     /** Lịch đặt phòng */

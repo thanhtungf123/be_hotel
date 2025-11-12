@@ -185,8 +185,9 @@ public class PaymentController {
         
         // Update status
         if ("deposit_paid".equals(paymentState) || "paid_in_full".equals(paymentState)) {
-            booking.setStatus("confirmed");
-            System.out.println("  ✅ Setting status to: confirmed");
+            // ✅ Set to pending_verification - Staff needs to verify room first
+            booking.setStatus("pending_verification");
+            System.out.println("  ✅ Setting status to: pending_verification");
         }
         
         // Save booking

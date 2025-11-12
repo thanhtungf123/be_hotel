@@ -39,6 +39,7 @@ public class CheckoutController {
     private final PaymentRepository paymentRepository;
     private final EntityManager entityManager;
     private final EmailService emailService;
+    private final com.luxestay.hotel.service.InvoiceService invoiceService;
 
     @Value("${app.frontend.base-url:http://localhost:5173}")
     private String frontendBaseUrl;
@@ -46,12 +47,13 @@ public class CheckoutController {
     @Autowired
     public CheckoutController(PayOS payOS, BookingRepository bookingRepository,
             PaymentRepository paymentRepository, EntityManager entityManager,
-            EmailService emailService) {
+            EmailService emailService, com.luxestay.hotel.service.InvoiceService invoiceService) {
         this.payOS = payOS;
         this.bookingRepository = bookingRepository;
         this.paymentRepository = paymentRepository;
         this.entityManager = entityManager;
         this.emailService = emailService;
+        this.invoiceService = invoiceService;
     }
 
     @PostMapping("/{bookingId}/create-payment-link")
@@ -475,10 +477,11 @@ public class CheckoutController {
         // Update payment state
         booking.setPaymentState(paymentState);
         
-        // Update status
+        // Update status  
         if ("deposit_paid".equals(paymentState) || "paid_in_full".equals(paymentState)) {
-            booking.setStatus("confirmed");
-            System.out.println("  ✅ Setting status to: confirmed");
+            // ✅ Set to pending_verification - Staff needs to verify room first
+            booking.setStatus("pending_verification");
+            System.out.println("  ✅ Setting status to: pending_verification");
         }
         
         // Save booking
@@ -506,6 +509,14 @@ public class CheckoutController {
                 if (email != null && !email.isBlank()) {
                     emailService.sendBookingConfirmation(email, customerName, roomName, in, out, paymentState, code);
                     System.out.println("  ✅ Sent booking confirmation email to: " + email);
+                    
+                    // ✅ Send invoice email
+                    try {
+                        invoiceService.sendInvoiceEmail(bookingId);
+                        System.out.println("  ✅ Sent invoice email to: " + email);
+                    } catch (Exception invoiceEx) {
+                        System.err.println("  ⚠️ Failed to send invoice email: " + invoiceEx.getMessage());
+                    }
                 }
             } catch (Exception e) {
                 System.err.println("  ⚠️ Failed to send booking confirmation email: " + e.getMessage());
