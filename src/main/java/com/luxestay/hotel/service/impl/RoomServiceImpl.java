@@ -49,6 +49,7 @@ public class RoomServiceImpl implements RoomService {
         return page.getContent().stream()
                 .filter(r -> Boolean.TRUE.equals(r.getIsVisible()))
                 .map(RoomMapper::toDto)
+                .peek(this::populateRatingAndReviews)  // Populate rating từ database
                 .toList();
     }
 
@@ -121,7 +122,10 @@ public class RoomServiceImpl implements RoomService {
                 .filter(r -> Boolean.TRUE.equals(r.getIsVisible()))
                 .toList();
 
-        List<Room> items = list.stream().map(RoomMapper::toDto).toList();
+        List<Room> items = list.stream()
+                .map(RoomMapper::toDto)
+                .peek(this::populateRatingAndReviews)  // Populate rating từ database
+                .toList();
         return new PagedResponse<>(items, (int) page.getTotalElements(), page.getNumber(), page.getSize());
     }
 
@@ -151,8 +155,31 @@ public class RoomServiceImpl implements RoomService {
         List<Room> items = page.getContent().stream()
                 .filter(r -> Boolean.TRUE.equals(r.getIsVisible()))
                 .map(RoomMapper::toDto)
+                .peek(this::populateRatingAndReviews)  // Populate rating từ database
                 .toList();
         return new PagedResponse<>(items, (int) page.getTotalElements(), page.getNumber(), page.getSize());
+    }
+    
+    /**
+     * Helper method để populate rating và review count từ database
+     */
+    private void populateRatingAndReviews(Room room) {
+        if (room.getId() == null) return;
+        
+        try {
+            // Lấy average rating
+            Double avgRating = reviewRepository.getAverageRatingByRoomId(room.getId().intValue());
+            room.setRating(avgRating);
+            
+            // Lấy số lượng reviews
+            List<com.luxestay.hotel.model.entity.ReviewEntity> reviews = 
+                reviewRepository.findByRoomId(room.getId().intValue());
+            room.setReviews(reviews != null ? reviews.size() : 0);
+        } catch (Exception e) {
+            // Nếu có lỗi, giữ null (không hiển thị rating)
+            room.setRating(null);
+            room.setReviews(null);
+        }
     }
 
     @Override
@@ -161,8 +188,8 @@ public class RoomServiceImpl implements RoomService {
                 .orElseThrow(() -> new IllegalArgumentException("Room not found"));
 
         Room room = RoomMapper.toDto(e);
-        room.setRating(4.7);
-        room.setReviews(120);
+        // Populate rating và reviews từ database thay vì hardcode
+        populateRatingAndReviews(room);
 
         // lấy gallery từ DB; nếu rỗng thì fallback
         List<RoomImage> imgs = roomImageRepository
@@ -553,6 +580,7 @@ public class RoomServiceImpl implements RoomService {
                 .filter(r -> Boolean.TRUE.equals(r.getIsVisible()))
                 .limit(limit)
                 .map(RoomMapper::toDto)
+                .peek(this::populateRatingAndReviews)  // Populate rating từ database
                 .collect(Collectors.toList());
     }
 
