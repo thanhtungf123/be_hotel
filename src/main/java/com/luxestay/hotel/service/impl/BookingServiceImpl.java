@@ -10,6 +10,8 @@ import com.luxestay.hotel.model.entity.RoomEntity;
 import com.luxestay.hotel.repository.*;
 import com.luxestay.hotel.service.BookingService;
 import com.luxestay.hotel.service.EmailService;
+import com.luxestay.hotel.service.NotificationService;
+import com.luxestay.hotel.util.RefundPolicyCalculator;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
@@ -23,6 +25,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -39,6 +42,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingCustomerDetailsRepository bookingCustomerDetailsRepository;
     private final ServicesRepository servicesRepository;
     private final EmailService emailService;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -89,8 +93,17 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // ✅ Total = room price + services price
-        BigDecimal total = roomTotal.add(servicesTotal);
+        // ✅ Calculate subtotal (room + services)
+        BigDecimal subtotal = roomTotal.add(servicesTotal);
+
+        // ✅ Calculate tax (10%) and service fee (5%)
+        BigDecimal tax = subtotal.multiply(BigDecimal.valueOf(0.10))
+                .setScale(0, RoundingMode.HALF_UP);
+        BigDecimal serviceFee = subtotal.multiply(BigDecimal.valueOf(0.05))
+                .setScale(0, RoundingMode.HALF_UP);
+
+        // ✅ Total = subtotal + tax + service fee
+        BigDecimal total = subtotal.add(tax).add(serviceFee);
 
         int percent = (req.getDepositPercent() != null && req.getDepositPercent() > 0 && req.getDepositPercent() < 100)
                 ? req.getDepositPercent() : DEFAULT_DEPOSIT_PERCENT;
@@ -104,6 +117,9 @@ public class BookingServiceImpl implements BookingService {
         b.setCheckOut(out);
         b.setAdults(adults);
         b.setChildren(children);
+        b.setSubtotalPrice(subtotal);
+        b.setTaxAmount(tax);
+        b.setServiceFeeAmount(serviceFee);
         b.setTotalPrice(total);
         b.setDepositAmount(deposit);
         b.setPaymentState("unpaid");
@@ -143,7 +159,41 @@ public class BookingServiceImpl implements BookingService {
         k.setCreatedAt(LocalDateTime.now());
         bookingCustomerDetailsRepository.save(k);
 
-        return new BookingResponse(b.getId(), b.getStatus(), total.intValue(), deposit.intValue(), b.getPaymentState());
+        // Prepare services list for response
+        List<Map<String, Object>> servicesList = new ArrayList<>();
+        for (Services service : selectedServices) {
+            Map<String, Object> svc = new java.util.HashMap<>();
+            svc.put("id", service.getId());
+            svc.put("name", service.getNameService());
+            svc.put("description", service.getDescription());
+            svc.put("price", service.getPrice());
+            servicesList.add(svc);
+        }
+
+        // ✅ Send booking success notification
+        try {
+            notificationService.notifyBookingSuccess(
+                acc.getId(),
+                b.getId(),
+                room.getRoomName(),
+                req.getCheckIn(),
+                req.getCheckOut()
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to send booking notification: " + e.getMessage());
+        }
+
+        return new BookingResponse(
+            b.getId(), 
+            b.getStatus(), 
+            total.intValue(), 
+            subtotal.intValue(),
+            tax.intValue(),
+            serviceFee.intValue(),
+            deposit.intValue(), 
+            b.getPaymentState(),
+            servicesList
+        );
     }
 
     @Override
@@ -177,7 +227,8 @@ public class BookingServiceImpl implements BookingService {
 
         b.setPaymentState(state);
         if ("deposit_paid".equals(state) || "paid_in_full".equals(state)) {
-            b.setStatus("confirmed");
+            // ✅ Set to pending_verification - Staff needs to verify room first
+            b.setStatus("pending_verification");
             if (b.getCheckInCode() == null || b.getCheckInCode().isBlank()) {
                 b.setCheckInCode(generateCheckInCode(b.getId()));
             }
@@ -202,6 +253,15 @@ public class BookingServiceImpl implements BookingService {
                 if (email != null && !email.isBlank()) {
                     emailService.sendBookingConfirmation(email, customerName, roomName, in, out, state, b.getCheckInCode());
                 }
+                
+                // ✅ Send booking confirmed notification with check-in code
+                if (b.getAccount() != null && b.getCheckInCode() != null) {
+                    notificationService.notifyBookingConfirmed(
+                        b.getAccount().getId(),
+                        b.getId(),
+                        b.getCheckInCode()
+                    );
+                }
             } catch (Exception e) {
                 System.err.println("Failed to send booking confirmation email: " + e.getMessage());
             }
@@ -222,11 +282,25 @@ public class BookingServiceImpl implements BookingService {
         if (st.equals("checked_in") || st.equals("checked_out"))
             throw new IllegalStateException("Không thể hủy khi đã nhận/trả phòng");
 
+        // ✅ Tính toán refund policy
         if (b.getCheckIn() != null) {
-            LocalDateTime deadline = b.getCheckIn().atStartOfDay().minusHours(CANCEL_FREE_HOURS);
-            if (LocalDateTime.now().isAfter(deadline)) {
-                throw new IllegalStateException("Đã quá hạn hủy miễn phí 24h trước check-in");
+            BigDecimal totalPaid = paymentRepository.sumPaidByBooking(bookingId);
+            if (totalPaid == null) totalPaid = BigDecimal.ZERO;
+            
+            // Xác định loại thanh toán: full payment hay deposit
+            boolean isFullPayment = "paid_in_full".equals(b.getPaymentState());
+            
+            // Tính toán refund
+            RefundPolicyCalculator.RefundResult refundResult = 
+                RefundPolicyCalculator.calculateRefund(b.getCheckIn(), totalPaid, isFullPayment);
+            
+            if (!refundResult.isCanCancel()) {
+                throw new IllegalStateException(refundResult.getMessage());
             }
+            
+            // Lưu thông tin refund
+            b.setRefundAmount(refundResult.getRefundAmount());
+            b.setRefundPercent(refundResult.getRefundPercent());
         }
 
         b.setStatus("cancel_requested");
@@ -268,6 +342,15 @@ public class BookingServiceImpl implements BookingService {
                     emailService.sendRefundInfoRequestEmail(customerEmail, customerName, bookingId, roomName, totalPrice);
                     System.out.println("✅ Sent refund info request email to: " + customerEmail);
                 }
+                
+                // ✅ Send cancellation approved notification
+                if (b.getAccount() != null) {
+                    notificationService.notifyCancellationApproved(
+                        b.getAccount().getId(),
+                        b.getId(),
+                        roomName
+                    );
+                }
             } catch (Exception e) {
                 System.err.println("⚠️ Failed to send refund info request email: " + e.getMessage());
                 e.printStackTrace();
@@ -278,6 +361,22 @@ public class BookingServiceImpl implements BookingService {
                 b.setCancelReason(append(b.getCancelReason(), "Reject: " + note));
             }
             bookingRepository.save(b);
+            
+            // ✅ Send cancellation rejected notification
+            try {
+                if (b.getAccount() != null && b.getRoom() != null) {
+                    String roomName = b.getRoom().getRoomName();
+                    String reason = note != null && !note.isBlank() ? note : "Không đủ điều kiện hủy";
+                    notificationService.notifyCancellationRejected(
+                        b.getAccount().getId(),
+                        b.getId(),
+                        roomName,
+                        reason
+                    );
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to send cancellation rejected notification: " + e.getMessage());
+            }
         }
     }
 
@@ -310,6 +409,19 @@ public class BookingServiceImpl implements BookingService {
         b.setRefundBankName(request.getBankName().trim());
         b.setRefundSubmittedAt(LocalDateTime.now());
         bookingRepository.save(b);
+        
+        // ✅ Send refund processing notification
+        try {
+            if (b.getAccount() != null && b.getRefundAmount() != null) {
+                notificationService.notifyRefundProcessing(
+                    b.getAccount().getId(),
+                    b.getId(),
+                    b.getRefundAmount().longValue()
+                );
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to send refund processing notification: " + e.getMessage());
+        }
     }
 
     @Override
@@ -347,6 +459,15 @@ public class BookingServiceImpl implements BookingService {
             if (customerEmail != null && !customerEmail.isBlank()) {
                 emailService.sendRefundCompletedEmail(customerEmail, customerName, bookingId, roomName, refundAmount);
                 System.out.println("✅ Sent refund completed email to: " + customerEmail);
+            }
+            
+            // ✅ Send refund completed notification
+            if (b.getAccount() != null && b.getRefundAmount() != null) {
+                notificationService.notifyRefundCompleted(
+                    b.getAccount().getId(),
+                    b.getId(),
+                    b.getRefundAmount().longValue()
+                );
             }
         } catch (Exception e) {
             System.err.println("⚠️ Failed to send refund completed email: " + e.getMessage());

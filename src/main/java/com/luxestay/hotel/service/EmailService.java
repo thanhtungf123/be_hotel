@@ -91,6 +91,119 @@ public class EmailService {
         }
     }
 
+    public void sendInvoiceEmail(String toEmail, com.luxestay.hotel.dto.invoice.InvoiceDTO invoice) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromEmail);
+        message.setTo(toEmail);
+        message.setSubject("📄 Hóa đơn đặt phòng - Aurora Palace Hotel");
+
+        StringBuilder servicesText = new StringBuilder();
+        if (invoice.getServices() != null && !invoice.getServices().isEmpty()) {
+            servicesText.append("\n\nDỊCH VỤ ĐÃ CHỌN:\n");
+            for (var service : invoice.getServices()) {
+                servicesText.append(String.format("• %s: %,d VNĐ\n", 
+                    service.getName(), service.getPrice().intValue()));
+            }
+        }
+
+        String content = String.format("""
+            Kính chào %s,
+            
+            Đây là hóa đơn cho đặt phòng của quý khách tại Aurora Palace Hotel.
+            
+            ═══════════════════════════════════════════
+            HÓA ĐƠN THANH TOÁN
+            ═══════════════════════════════════════════
+            
+            Mã hóa đơn: %s
+            Ngày xuất: %s
+            Mã check-in: %s
+            
+            ───────────────────────────────────────────
+            THÔNG TIN KHÁCH HÀNG
+            ───────────────────────────────────────────
+            Họ tên: %s
+            Số điện thoại: %s
+            Email: %s
+            
+            ───────────────────────────────────────────
+            THÔNG TIN PHÒNG
+            ───────────────────────────────────────────
+            • Phòng: %s
+            • Check-in: %s
+            • Check-out: %s
+            • Số đêm: %d
+            • Số khách: %d người lớn%s
+            %s
+            ───────────────────────────────────────────
+            CHI TIẾT GIÁ
+            ───────────────────────────────────────────
+            Tiền phòng (%d đêm)         %,d VNĐ
+            Dịch vụ bổ sung              %,d VNĐ
+                                    ──────────────
+            Tạm tính                     %,d VNĐ
+            Thuế VAT (10%%)               %,d VNĐ
+            Phí dịch vụ (5%%)             %,d VNĐ
+                                    ──────────────
+            TỔNG CỘNG                    %,d VNĐ
+            ═══════════════════════════════════════════
+            
+            THÔNG TIN THANH TOÁN
+            ───────────────────────────────────────────
+            Trạng thái: %s
+            Đã thanh toán: %,d VNĐ
+            %s
+            ───────────────────────────────────────────
+            
+            Cảm ơn quý khách đã tin tưởng và sử dụng dịch vụ!
+            
+            Thời gian check-in: 14:00 | Check-out: 12:00
+            
+            Nếu có thắc mắc, vui lòng liên hệ:
+            📞 Hotline: +84 123 456 789
+            ✉️ Email: %s
+            
+            Trân trọng,
+            Aurora Palace Hotel
+            """,
+            safe(invoice.getCustomerName()),
+            safe(invoice.getInvoiceNumber()),
+            invoice.getIssueDate() != null ? invoice.getIssueDate().toString() : "",
+            safe(invoice.getCheckInCode()),
+            safe(invoice.getCustomerName()),
+            safe(invoice.getCustomerPhone()),
+            safe(invoice.getCustomerEmail()),
+            safe(invoice.getRoomName()),
+            invoice.getCheckIn() != null ? invoice.getCheckIn().toString() : "",
+            invoice.getCheckOut() != null ? invoice.getCheckOut().toString() : "",
+            invoice.getNights() != null ? invoice.getNights() : 0,
+            invoice.getAdults() != null ? invoice.getAdults() : 0,
+            invoice.getChildren() != null && invoice.getChildren() > 0 ? ", " + invoice.getChildren() + " trẻ em" : "",
+            servicesText.toString(),
+            invoice.getNights() != null ? invoice.getNights() : 0,
+            invoice.getRoomTotal() != null ? invoice.getRoomTotal().intValue() : 0,
+            invoice.getServicesTotal() != null ? invoice.getServicesTotal().intValue() : 0,
+            invoice.getSubtotal() != null ? invoice.getSubtotal().intValue() : 0,
+            invoice.getTax() != null ? invoice.getTax().intValue() : 0,
+            invoice.getServiceFee() != null ? invoice.getServiceFee().intValue() : 0,
+            invoice.getTotal() != null ? invoice.getTotal().intValue() : 0,
+            mapPaymentState(invoice.getPaymentState()),
+            invoice.getPaidAmount() != null ? invoice.getPaidAmount().intValue() : 0,
+            invoice.getDepositAmount() != null && invoice.getDepositAmount().compareTo(java.math.BigDecimal.ZERO) > 0
+                ? String.format("Tiền cọc: %,d VNĐ", invoice.getDepositAmount().intValue())
+                : "",
+            fromEmail);
+
+        message.setText(content);
+        try {
+            mailSender.send(message);
+            System.out.println("✅ Invoice email sent to: " + toEmail);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send invoice email to: " + toEmail);
+            e.printStackTrace();
+        }
+    }
+
     public void sendRefundInfoRequestEmail(String toEmail, String customerName,
                                             Integer bookingId, String roomName,
                                             String totalPrice) {
@@ -191,6 +304,119 @@ public class EmailService {
             case "deposit_paid" -> "Đã thanh toán tiền cọc";
             default -> "Chưa thanh toán";
         };
+    }
+
+    public void sendRoomIssueEmail(String toEmail, String customerName,
+                                   Integer bookingId, String roomName,
+                                   String issueDescription) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromEmail);
+        message.setTo(toEmail);
+        message.setSubject("⚠️ Thông báo về vấn đề phòng - Aurora Palace Hotel");
+
+        String content = String.format("""
+            Kính chào %s,
+            
+            Chúng tôi rất tiếc phải thông báo rằng phòng trong đơn đặt của quý khách đang gặp một số vấn đề.
+            
+            Thông tin đặt phòng:
+            • Mã đặt phòng: #%d
+            • Phòng: %s
+            
+            Vấn đề: %s
+            
+            Chúng tôi sẽ tiến hành hoàn trả toàn bộ số tiền quý khách đã thanh toán.
+            
+            Để thực hiện hoàn tiền, quý khách vui lòng cung cấp thông tin tài khoản ngân hàng:
+            1. Đăng nhập vào tài khoản tại website
+            2. Vào phần "Lịch sử đặt phòng"
+            3. Tìm đơn đặt phòng #%d
+            4. Điền đầy đủ thông tin:
+               - Chủ tài khoản ngân hàng
+               - Số tài khoản ngân hàng
+               - Tên ngân hàng
+            5. Bấm "Gửi thông tin" để hoàn tất
+            
+            Sau khi nhận được thông tin, chúng tôi sẽ hoàn tiền trong vòng 3-5 ngày làm việc.
+            
+            Chúng tôi chân thành xin lỗi vì sự bất tiện này.
+            
+            Nếu có thắc mắc, vui lòng liên hệ:
+            📞 Hotline: +84 123 456 789
+            ✉️ Email: %s
+            
+            Trân trọng,
+            Aurora Palace Hotel
+            """,
+            safe(customerName), bookingId, safe(roomName), safe(issueDescription),
+            bookingId, fromEmail);
+
+        message.setText(content);
+        try {
+            mailSender.send(message);
+            System.out.println("✅ Room issue email sent to: " + toEmail);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send room issue email to: " + toEmail);
+            e.printStackTrace();
+        }
+    }
+
+    public void sendRoomConfirmedEmail(String toEmail, String customerName,
+                                        String roomName, String checkIn, String checkOut,
+                                        String checkInCode) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromEmail);
+        message.setTo(toEmail);
+        message.setSubject("✅ Xác nhận đặt phòng thành công - Aurora Palace Hotel");
+
+        String content = String.format("""
+            Kính chào %s,
+            
+            Đặt phòng của quý khách đã được xác nhận thành công!
+            
+            Phòng đã được kiểm tra và sẵn sàng cho chuyến đi của quý khách.
+            
+            ═══════════════════════════════════════════
+            THÔNG TIN ĐẶT PHÒNG
+            ═══════════════════════════════════════════
+            
+            Phòng: %s
+            Check-in: %s (14:00)
+            Check-out: %s (12:00)
+            
+            ───────────────────────────────────────────
+            MÃ CHECK-IN
+            ───────────────────────────────────────────
+            %s
+            ───────────────────────────────────────────
+            
+            ⚠️ Vui lòng xuất trình mã này khi check-in tại khách sạn.
+            
+            Lưu ý:
+            • Giờ nhận phòng: 14:00
+            • Giờ trả phòng: 12:00
+            • Vui lòng mang theo CCCD/CMND khi check-in
+            
+            Chúng tôi rất mong được phục vụ quý khách!
+            
+            Nếu có thắc mắc, vui lòng liên hệ:
+            📞 Hotline: +84 123 456 789
+            ✉️ Email: %s
+            
+            Trân trọng,
+            Aurora Palace Hotel
+            """,
+            safe(customerName), safe(roomName), safe(checkIn), safe(checkOut),
+            safe(checkInCode), fromEmail);
+
+        message.setText(content);
+        try {
+            mailSender.send(message);
+            System.out.println("✅ Room confirmed email sent to: " + toEmail);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send room confirmed email to: " + toEmail);
+            e.printStackTrace();
+        }
     }
 }
 

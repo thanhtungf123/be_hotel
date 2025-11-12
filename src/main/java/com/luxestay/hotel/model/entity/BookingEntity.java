@@ -37,6 +37,15 @@ public class BookingEntity {
     @Column(name = "total_price")
     private BigDecimal totalPrice;
 
+    @Column(name = "subtotal_price")
+    private BigDecimal subtotalPrice;
+
+    @Column(name = "tax_amount")
+    private BigDecimal taxAmount;
+
+    @Column(name = "service_fee_amount")
+    private BigDecimal serviceFeeAmount;
+
     @Column(name = "deposit_amount")
     private BigDecimal depositAmount;
 
@@ -101,6 +110,12 @@ public class BookingEntity {
     @Column(name = "refund_completed_by")
     private Integer refundCompletedBy;
 
+    @Column(name = "refund_amount")
+    private BigDecimal refundAmount;
+
+    @Column(name = "refund_percent")
+    private Integer refundPercent;
+
     // ✅ Many-to-Many relationship with Services
     @ManyToMany(fetch = FetchType.LAZY, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
     @JoinTable(
@@ -117,6 +132,9 @@ public class BookingEntity {
     public LocalDate getCheckIn() { return checkIn; }
     public LocalDate getCheckOut() { return checkOut; }
     public BigDecimal getTotalPrice() { return totalPrice; }
+    public BigDecimal getSubtotalPrice() { return subtotalPrice; }
+    public BigDecimal getTaxAmount() { return taxAmount; }
+    public BigDecimal getServiceFeeAmount() { return serviceFeeAmount; }
     public String getStatus() { return status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public String getCancelReason() { return cancelReason; }
@@ -140,6 +158,8 @@ public class BookingEntity {
     public LocalDateTime getRefundSubmittedAt() { return refundSubmittedAt; }
     public LocalDateTime getRefundCompletedAt() { return refundCompletedAt; }
     public Integer getRefundCompletedBy() { return refundCompletedBy; }
+    public BigDecimal getRefundAmount() { return refundAmount; }
+    public Integer getRefundPercent() { return refundPercent; }
     public Set<Services> getServices() { return services; }
 
     // === SETTERS ===
@@ -149,6 +169,9 @@ public class BookingEntity {
     public void setCheckIn(LocalDate checkIn) { this.checkIn = checkIn; }
     public void setCheckOut(LocalDate checkOut) { this.checkOut = checkOut; }
     public void setTotalPrice(BigDecimal totalPrice) { this.totalPrice = totalPrice; }
+    public void setSubtotalPrice(BigDecimal subtotalPrice) { this.subtotalPrice = subtotalPrice; }
+    public void setTaxAmount(BigDecimal taxAmount) { this.taxAmount = taxAmount; }
+    public void setServiceFeeAmount(BigDecimal serviceFeeAmount) { this.serviceFeeAmount = serviceFeeAmount; }
     public void setStatus(String status) { this.status = status; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public void setCancelReason(String cancelReason) { this.cancelReason = cancelReason; }
@@ -172,5 +195,7 @@ public class BookingEntity {
     public void setRefundSubmittedAt(LocalDateTime refundSubmittedAt) { this.refundSubmittedAt = refundSubmittedAt; }
     public void setRefundCompletedAt(LocalDateTime refundCompletedAt) { this.refundCompletedAt = refundCompletedAt; }
     public void setRefundCompletedBy(Integer refundCompletedBy) { this.refundCompletedBy = refundCompletedBy; }
+    public void setRefundAmount(BigDecimal refundAmount) { this.refundAmount = refundAmount; }
+    public void setRefundPercent(Integer refundPercent) { this.refundPercent = refundPercent; }
     public void setServices(Set<Services> services) { this.services = services; }
 }
