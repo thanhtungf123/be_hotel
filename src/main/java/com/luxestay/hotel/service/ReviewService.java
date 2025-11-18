@@ -45,7 +45,7 @@ public class ReviewService {
             throw new IllegalStateException("You have already reviewed this booking");
         }
 
-        // ✅ Allow review after booking confirmed or stayed
+        // Allow review after booking confirmed or stayed
         String status = booking.getStatus() != null ? booking.getStatus().toLowerCase() : "";
         if (!status.equals("confirmed") &&
             !status.equals("checked_in") &&

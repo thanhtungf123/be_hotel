@@ -25,18 +25,16 @@ public class AccountService {
     public Account findById(int id) {
         return accountRepository.findById(id).orElse(null);
     }
-    @Transactional
+
     public void  save(Account account) {
 //        account.setRole(roleRepository.findById(1).orElse(null));
         accountRepository.save(account);
     }
 
-    @Transactional
     public void  saveCreate(Account account) {
         account.setRole(roleRepository.findById(1).orElse(null));
         accountRepository.save(account);
     }
-    @Transactional
     public void delete(int id) {
         Account account = accountRepository.findById(id).orElse(null);
         if (account != null) {

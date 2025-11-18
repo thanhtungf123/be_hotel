@@ -53,35 +53,21 @@ public class AdminController {
     private WorkShiftRepository workShiftRepository;
     
     private final AuthorizationHelper authHelper;
-    /**
-     * Guard admin theo X-Auth-Token
-     */
-//    private void requireAdmin(HttpServletRequest request) {
-//        String token = request.getHeader("X-Auth-Token");
-//        if (token == null || token.isBlank()) {
-//            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing X-Auth-Token");
-//        }
-//        Optional<Integer> accountIdOpt = authService.verify(token);
-//        Integer accountId = accountIdOpt.orElseThrow(
-//                () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token"));
-//
-//        Account acc = accountRepository.findById(accountId).orElseThrow(
-//                () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account not found"));
-//
-//        Role role = acc.getRole();
-//        String roleName = role != null ? role.getName() : null;
-//        if (roleName == null || !roleName.equalsIgnoreCase("admin")) {
-//            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin role required");
-//        }
-//    }
 
     /* ---------- CRUD EMPLOYEE ---------- */
+    /*
+    Chỉ lấy 1 thông tin cho employee
+    Phục vụ trang edit nhân viên
+     */
     @GetMapping("/employees/{id}")
     public Employee get(@PathVariable("id") Integer id, HttpServletRequest request) {
         authHelper.requireAdmin(request);
         return employeeService.get(id);
     }
-
+    /*
+    Tạo/Thêm 1 nhân viên mới
+    Các thành phần tạo: mã nhân viên, tài khoản email, lịch làm việc(Sẽ tạo bên workshift/schedule
+     */
     @PostMapping("/employees")
     @ResponseStatus(HttpStatus.CREATED)
     public Employee create(@Valid @RequestBody Employee body,
@@ -90,7 +76,9 @@ public class AdminController {
         authHelper.requireAdmin(request);
         return employeeService.create(body, accountId);
     }
-
+    /*
+    Chỉnh sử thông tin nhân viên
+     */
     @PutMapping("/employees/{id}")
     public Employee update(@PathVariable("id") Integer id, 
                           @RequestBody Employee patch,
@@ -98,7 +86,9 @@ public class AdminController {
         authHelper.requireAdmin(request);
         return employeeService.update(id, patch);
     }
-
+    /*
+    Hàm tên xoá nhưng phục vụ mục đích ẩn nhân viên đi và hoạt động của cái mã đó sẽ bị tắt đi
+     */
     @DeleteMapping("/employees/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") Integer id, HttpServletRequest request) {
@@ -106,34 +96,43 @@ public class AdminController {
         employeeService.delete(id);
     }
 
-    //Get all Employee
+    //Tạo danh sách chứa thông tin nhân viên
     @GetMapping("/employees")
     public List<Employee> getEmployees(HttpServletRequest request) {
         authHelper.requireAdmin(request);
         return employeeService.getAll();
     }
 
-
-    /* ---------- CRUD ACCOUNT ---------- */
+    //Chỉ liệt kê các danh sách khách hàng và hiện thỉ cho nhân viên
     @GetMapping("/employees/accounts")
     public List<Account> getAccountsRoleCustomer() {
         return accountService.getAllbyRoleId(1);
     }
+    /* ---------- CRUD ACCOUNT ---------- */
 
-    // Get All Account
+
+    /*
+    Liệt kê danh sách các tài khoản cho Admin
+    khác mỗi chữ "s" ở tên hàm
+     */
     @GetMapping("/accounts")
     public List<Account> getAccounts(HttpServletRequest request) {
 //        requireAdmin(request);
         return accountService.findAll();
     }
 
-    // GET account by ID
+    /*
+    Lấy 1 thông tin dựa trên id của tài khoản
+    khác mỗi chữ "s" ở tên hàm
+     */
     @GetMapping("/accounts/{id}")
     public Account getAccount(@PathVariable("id") Integer id, HttpServletRequest request) {
         return accountService.findById(id);
     }
 
-    // CREATE new account
+    /*
+    Tạo tài khoản cho Khách hàng hoặc Tài Khoản riêng dành riêng cho nhân sự
+     */
     @PostMapping("/accounts")
     @ResponseStatus(HttpStatus.CREATED)
     public Account createAccount(@RequestBody Account account,
@@ -153,7 +152,7 @@ public class AdminController {
         return account;
     }
 
-    // UPDATE account
+    // Chỉnh sửa thông tin tài khoản của bên Admin
     @PutMapping("/accounts/{id}")
     public void updateAccount(@PathVariable("id") Integer id,
                               @RequestBody Account updatedAccount,
@@ -164,9 +163,8 @@ public class AdminController {
         existing.setFullName(updatedAccount.getFullName());
         existing.setPasswordHash(updatedAccount.getPasswordHash());
         existing.setRole(updatedAccount.getRole());
-        // Add other fields as needed
 
-        // 🔐 Password
+        // Mã hoá password
             if (password != null && !password.isBlank()) {
             existing.setPasswordHash(passwordEncoder.encode(password));
         } else if (updatedAccount.getPasswordHash() != null) {
@@ -176,10 +174,10 @@ public class AdminController {
                             : updatedAccount.getPasswordHash()
             );
         }
-        // ⚙️ Update isActive: ưu tiên body, fallback params
+
         if (updatedAccount.getIsActive() != null) {
             existing.setIsActive(updatedAccount.getIsActive());
-        } else if (active != null) {                // 👈 fallback từ query param
+        } else if (active != null) {
             existing.setIsActive(active);
         }
 
@@ -187,7 +185,10 @@ public class AdminController {
         accountService.save(existing);
     }
 
-    // DELETE account
+    /*
+     Đổi trạng thái account kích hoạt --> không kích hoạt
+     Được dùng để khoá tài khoản và ngăn người dùng tạo lại tài khoản mới dựa trên thông tin cũ
+     */
     @DeleteMapping("/accounts/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteAccount(@PathVariable("id") Integer id, HttpServletRequest request) {
