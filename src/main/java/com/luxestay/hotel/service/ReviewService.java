@@ -169,4 +169,15 @@ public class ReviewService {
                 .createdAt(review.getCreatedAt())
                 .build();
     }
+
+    @Transactional
+    public void deleteReview(Integer reviewId, Account account) {
+        ReviewEntity review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đánh giá"));
+        BookingEntity booking = review.getBooking();
+        if (booking == null || booking.getAccount() == null || !booking.getAccount().getId().equals(account.getId())) {
+            throw new IllegalStateException("Bạn chỉ có thể xóa đánh giá của chính mình");
+        }
+        reviewRepository.delete(review);
+    }
 }

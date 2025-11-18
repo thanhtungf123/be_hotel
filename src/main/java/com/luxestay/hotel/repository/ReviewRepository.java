@@ -69,4 +69,6 @@ public interface ReviewRepository extends JpaRepository<ReviewEntity, Integer> {
         ORDER BY r.rating DESC, r.createdAt DESC
         """)
     List<ReviewEntity> findFeaturedReviews();
+
+    Optional<ReviewEntity> findByIdAndBooking_Account_Id(Integer id, Integer accountId);
 }

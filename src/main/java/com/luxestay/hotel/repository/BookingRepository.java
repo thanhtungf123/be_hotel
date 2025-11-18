@@ -57,9 +57,10 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       FROM BookingEntity b
       WHERE b.room.id = :roomId
         AND (
-          LOWER(b.status) IN ('confirmed','checked_in')
-          OR b.paymentState IN ('deposit_paid','paid_in_full')
+              LOWER(COALESCE(b.status, '')) IN ('pending','pending_verification','confirmed','checked_in')
+          OR  b.paymentState IN ('deposit_paid','paid_in_full')
         )
+        AND LOWER(COALESCE(b.status, '')) NOT IN ('cancelled','cancel_requested')
         AND :checkIn < b.checkOut
         AND :checkOut > b.checkIn
       """)
@@ -71,8 +72,11 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       select b from BookingEntity b
       where b.room.id = :roomId
         and (
-          lower(b.status) in ('pending','confirmed','checked_in')
-          or b.paymentState in ('deposit_paid','paid_in_full')
+              (
+                    lower(coalesce(b.status,'')) in ('pending','pending_verification','confirmed','checked_in')
+                or  b.paymentState in ('deposit_paid','paid_in_full')
+              )
+          and lower(coalesce(b.status,'')) not in ('cancelled','cancel_requested')
         )
         and :start < b.checkOut
         and :end   > b.checkIn
@@ -111,8 +115,11 @@ public interface BookingRepository extends JpaRepository<BookingEntity, Integer>
       select b from BookingEntity b
       where b.room.id = :roomId
         and (
-          lower(b.status) in ('confirmed','checked_in')
-          or b.paymentState in ('deposit_paid','paid_in_full')
+              (
+                    lower(coalesce(b.status,'')) in ('pending','pending_verification','confirmed','checked_in')
+                or  b.paymentState in ('deposit_paid','paid_in_full')
+              )
+          and lower(coalesce(b.status,'')) not in ('cancelled','cancel_requested')
         )
       order by b.checkIn
       """)

@@ -85,4 +85,14 @@ public class ReviewController {
                     .body(List.of());
         }
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteReview(
+            @PathVariable("id") Integer reviewId,
+            HttpServletRequest httpRequest) {
+        Account account = authService.requireAccount(
+                httpRequest.getHeader("X-Auth-Token"));
+        reviewService.deleteReview(reviewId, account);
+        return ResponseEntity.noContent().build();
+    }
 }

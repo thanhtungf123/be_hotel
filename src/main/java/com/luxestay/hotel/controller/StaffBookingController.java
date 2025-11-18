@@ -367,6 +367,18 @@ public class StaffBookingController {
         BookingEntity b = bookingRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đặt phòng"));
 
+        if (!"checked_in".equalsIgnoreCase(b.getStatus())) {
+            throw new IllegalStateException("Chỉ check-out khi đơn đang ở trạng thái checked_in");
+        }
+
+        if (b.getCheckOut() == null) {
+            throw new IllegalStateException("Thiếu ngày check-out");
+        }
+
+        if (LocalDate.now().isBefore(b.getCheckOut())) {
+            throw new IllegalStateException("Chỉ được check-out vào ngày " + b.getCheckOut());
+        }
+
         b.setStatus("checked_out");
         bookingRepository.save(b);
 
