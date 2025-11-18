@@ -1,13 +1,17 @@
 package com.luxestay.hotel.repository;
 
-import com.luxestay.hotel.model.entity.RoomEntity;
-import org.springframework.data.domain.*;
-import org.springframework.data.jpa.repository.*;
+import java.time.LocalDate;
+import java.util.List;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDate;
-import java.util.List;
+import com.luxestay.hotel.model.entity.RoomEntity;
 
 @Repository
 public interface RoomRepository extends JpaRepository<RoomEntity, Integer>, JpaSpecificationExecutor<RoomEntity> {
@@ -59,8 +63,11 @@ public interface RoomRepository extends JpaRepository<RoomEntity, Integer>, JpaS
             FROM BookingEntity b
             WHERE b.room.id = r.id
                   AND (
-                  LOWER(b.status) IN ('confirmed','checked_in')
-                  OR b.paymentState IN ('deposit_paid','paid_in_full')
+                  (
+                        LOWER(COALESCE(b.status, '')) IN ('pending','pending_verification','confirmed','checked_in')
+                    OR  b.paymentState IN ('deposit_paid','paid_in_full')
+                  )
+                  AND LOWER(COALESCE(b.status, '')) NOT IN ('cancelled','cancel_requested')
                   )
                   AND :checkIn < b.checkOut
                   AND :checkOut > b.checkIn
